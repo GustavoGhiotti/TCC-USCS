@@ -46,10 +46,11 @@ export function Relatos() {
     setLoading(true);
     try {
       const novoRelato = await createRelato({
+        id: '',
         gestanteId: user.id,
         data: formData.data,
         descricao: formData.descricao,
-        humor: formData.humor,
+        humor: formData.humor as 'feliz' | 'normal' | 'triste' | 'ansioso',
         sintomas: formData.sintomas,
       });
 
