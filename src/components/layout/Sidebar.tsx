@@ -50,7 +50,7 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 text-xs border-t border-slate-700 text-slate-400">
-        <p>Versão 1.0</p>
+        <p>Versão 0.3</p>
         <p className="mt-2">TCC - 2026</p>
       </div>
     </aside>
