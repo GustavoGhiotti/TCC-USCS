@@ -17,6 +17,9 @@ export function Relatos() {
     descricao: '',
     humor: 'normal',
     sintomas: [] as string[],
+    pressaoArterial: '',
+    batimentosCardiacos: '',
+    ocorrencias: '',
   });
 
   const sintomasDisponiveis = [
@@ -52,6 +55,12 @@ export function Relatos() {
         descricao: formData.descricao,
         humor: formData.humor as 'feliz' | 'normal' | 'triste' | 'ansioso',
         sintomas: formData.sintomas,
+        // @ts-ignore - Adicionando campos extras ao mock dinamicamente
+        sinaisVitais: {
+          pressao: formData.pressaoArterial,
+          batimentos: formData.batimentosCardiacos
+        },
+        ocorrencias: formData.ocorrencias
       });
 
       setRelatos([novoRelato, ...relatos]);
@@ -60,6 +69,9 @@ export function Relatos() {
         descricao: '',
         humor: 'normal',
         sintomas: [],
+        pressaoArterial: '',
+        batimentosCardiacos: '',
+        ocorrencias: '',
       });
       setShowForm(false);
     } finally {
@@ -125,6 +137,33 @@ export function Relatos() {
               </div>
             </div>
 
+            <div className="p-4 border rounded-lg bg-slate-50 border-slate-200">
+              <h4 className="mb-3 text-sm font-semibold text-slate-700">Sinais Vitais (Opcional)</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-slate-600">
+                    Pressão Arterial (ex: 120/80)
+                  </label>
+                  <Input
+                    value={formData.pressaoArterial}
+                    onChange={(e) => setFormData(prev => ({ ...prev, pressaoArterial: e.target.value }))}
+                    placeholder="120/80"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-slate-600">
+                    Batimentos Cardíacos (BPM)
+                  </label>
+                  <Input
+                    type="number"
+                    value={formData.batimentosCardiacos}
+                    onChange={(e) => setFormData(prev => ({ ...prev, batimentosCardiacos: e.target.value }))}
+                    placeholder="80"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div>
               <label className="block mb-2 text-sm font-medium text-slate-700">
                 Descrição
@@ -137,6 +176,17 @@ export function Relatos() {
                 placeholder="Descreva como você se sente hoje..."
                 className="w-full h-24 px-3 py-2 border rounded border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm font-medium text-slate-700">
+                Ocorrências Relevantes (quedas, mal-estar súbito, etc.)
+              </label>
+              <Input
+                value={formData.ocorrencias}
+                onChange={(e) => setFormData(prev => ({ ...prev, ocorrencias: e.target.value }))}
+                placeholder="Houve algo fora do comum?"
               />
             </div>
 
@@ -203,6 +253,20 @@ export function Relatos() {
                     </span>
                   ))}
                 </div>
+              )}
+              {/* @ts-ignore */}
+              {(relato.sinaisVitais?.pressao || relato.sinaisVitais?.batimentos) && (
+                <div className="mt-3 text-xs text-slate-600 bg-slate-50 p-2 rounded">
+                  <strong>Sinais Vitais: </strong>
+                  {/* @ts-ignore */}
+                  {relato.sinaisVitais.pressao && `PA: ${relato.sinaisVitais.pressao} `}
+                  {/* @ts-ignore */}
+                  {relato.sinaisVitais.batimentos && `| BPM: ${relato.sinaisVitais.batimentos}`}
+                </div>
+              )}
+              {/* @ts-ignore */}
+              {relato.ocorrencias && (
+                <p className="mt-2 text-xs text-red-600"><strong>⚠️ Ocorrência:</strong> {relato.ocorrencias}</p>
               )}
             </div>
           ))

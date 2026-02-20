@@ -4,13 +4,35 @@ import { User, RelatoDiario, Medicamento, Consulta, ResumoIA } from '../types/do
 // DADOS MOCK - SIMULANDO BANCO DE DADOS
 // ============================================
 
-const gestantes: User[] = [
+export interface Prontuario {
+  id: string;
+  gestanteId: string;
+  data: string;
+  descricao: string;
+  medicamentosPrescritos: string[];
+  acoesRealizadas: string;
+  medicoId: string;
+}
+
+export interface Orientacao {
+  id: string;
+  gestanteId: string;
+  medicoId: string;
+  data: string;
+  texto: string;
+}
+
+const gestantes: any[] = [
   {
     id: '1',
     nomeCompleto: 'Maria Silva',
     email: 'maria@example.com',
     role: 'gestante',
     semanasGestacao: 28,
+    dadosExames: {
+      pressaoArterial: '120/80',
+      circunferenciaAbdominal: '95 cm'
+    }
   },
   {
     id: '2',
@@ -18,6 +40,10 @@ const gestantes: User[] = [
     email: 'ana@example.com',
     role: 'gestante',
     semanasGestacao: 32,
+    dadosExames: {
+      pressaoArterial: '130/85',
+      circunferenciaAbdominal: '102 cm'
+    }
   },
   {
     id: '3',
@@ -25,6 +51,10 @@ const gestantes: User[] = [
     email: 'paula@example.com',
     role: 'gestante',
     semanasGestacao: 20,
+    dadosExames: {
+      pressaoArterial: '110/70',
+      circunferenciaAbdominal: '88 cm'
+    }
   },
   {
     id: '4',
@@ -32,6 +62,10 @@ const gestantes: User[] = [
     email: 'lucia@example.com',
     role: 'gestante',
     semanasGestacao: 35,
+    dadosExames: {
+      pressaoArterial: '125/82',
+      circunferenciaAbdominal: '105 cm'
+    }
   },
 ];
 
@@ -44,7 +78,7 @@ const medicos: User[] = [
   },
 ];
 
-const relatos: RelatoDiario[] = [
+const relatos: any[] = [
   {
     id: '1',
     gestanteId: '1',
@@ -52,6 +86,12 @@ const relatos: RelatoDiario[] = [
     descricao: 'Dia normal, sem grandes incômodos. Bebê se mexendo bastante.',
     sintomas: ['cansaço', 'inchaço', 'dor nas costas'],
     humor: 'feliz',
+    sinaisVitais: {
+      batimentos: 85,
+      oxigenacao: 98,
+      outros: 'Temperatura 36.5'
+    },
+    ocorrencias: 'Nenhuma ocorrência relevante.'
   },
   {
     id: '2',
@@ -59,6 +99,11 @@ const relatos: RelatoDiario[] = [
     data: '2026-01-25',
     descricao: 'Senti azia e alguns gases. Mas nada preocupante.',
     sintomas: ['azia', 'gases'],
+    sinaisVitais: {
+      pressao: '110/70',
+      batimentos: 80
+    },
+    ocorrencias: '',
     humor: 'normal',
   },
   {
@@ -67,6 +112,7 @@ const relatos: RelatoDiario[] = [
     data: '2026-01-27',
     descricao: 'Muito cansada, tentei descansar o dia todo.',
     sintomas: ['contrações', 'cansaço extremo'],
+    ocorrencias: 'Tive uma leve tontura ao levantar.',
     humor: 'triste',
   },
   {
@@ -141,6 +187,28 @@ const medicamentos: Medicamento[] = [
     ativo: true,
     dataPrescricao: '2025-11-01',
   },
+];
+
+const prontuarios: Prontuario[] = [
+  {
+    id: '1',
+    gestanteId: '1',
+    data: '2026-01-15',
+    descricao: 'Paciente relatou dores nas costas.',
+    medicamentosPrescritos: ['Paracetamol'],
+    acoesRealizadas: 'Recomendação de fisioterapia e repouso.',
+    medicoId: 'med-1'
+  }
+];
+
+const orientacoes: Orientacao[] = [
+  {
+    id: '1',
+    gestanteId: '1',
+    medicoId: 'med-1',
+    data: '2026-01-29',
+    texto: 'Mantenha o repouso e continue monitorando a pressão arterial diariamente. Se passar de 140/90, vá ao pronto-socorro.'
+  }
 ];
 
 const consultas: Consulta[] = [
@@ -310,6 +378,50 @@ export async function createConsulta(novaConsulta: Consulta): Promise<Consulta> 
 }
 
 // ============================================
+// PRONTUÁRIOS
+// ============================================
+
+export async function getProntuarios(gestanteId: string): Promise<Prontuario[]> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(prontuarios.filter(p => p.gestanteId === gestanteId).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()));
+    }, 300);
+  });
+}
+
+export async function createProntuario(novoProntuario: Omit<Prontuario, 'id'>): Promise<Prontuario> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const prontuario = { ...novoProntuario, id: String(prontuarios.length + 1) };
+      prontuarios.push(prontuario);
+      resolve(prontuario);
+    }, 300);
+  });
+}
+
+// ============================================
+// ORIENTAÇÕES
+// ============================================
+
+export async function getOrientacoes(gestanteId: string): Promise<Orientacao[]> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(orientacoes.filter(o => o.gestanteId === gestanteId).sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime()));
+    }, 300);
+  });
+}
+
+export async function createOrientacao(novaOrientacao: Omit<Orientacao, 'id'>): Promise<Orientacao> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const orientacao = { ...novaOrientacao, id: String(orientacoes.length + 1) };
+      orientacoes.push(orientacao);
+      resolve(orientacao);
+    }, 300);
+  });
+}
+
+// ============================================
 // FUNÇÕES PARA MÉDICO
 // ============================================
 
@@ -383,6 +495,7 @@ RESUMO DE ANÁLISE - IA MÉDICA
 Paciente: ${gestante?.nomeCompleto || 'Não identificada'}
 Semanas de Gestação: ${gestante?.semanasGestacao || '—'}
 Total de Relatos: ${relatosDaGestante.length}
+Dados de Exames Recentes: PA ${gestante?.dadosExames?.pressaoArterial || 'N/A'}, Circ. ${gestante?.dadosExames?.circunferenciaAbdominal || 'N/A'}
 
 ANÁLISE:
 --------
@@ -399,6 +512,9 @@ ${getAllSymptoms(relatosDaGestante)
 
 Humor Predominante:
 ${getMoodAnalysis(relatosDaGestante)}
+
+Alertas de Sinais Vitais/Ocorrências:
+${getVitalSignsAnalysis(relatosDaGestante)}
 
 Recomendações:
 - Manter acompanhamento regular
@@ -421,7 +537,7 @@ function getAllSymptoms(
   const symptoms: Record<string, number> = {};
 
   relatosList.forEach((relato) => {
-    relato.sintomas.forEach((sintoma) => {
+    relato.sintomas?.forEach((sintoma) => {
       symptoms[sintoma] = (symptoms[sintoma] || 0) + 1;
     });
   });
@@ -435,10 +551,14 @@ function getMoodAnalysis(relatosList: RelatoDiario[]): string {
   const moods: Record<string, number> = {};
 
   relatosList.forEach((relato) => {
-    moods[relato.humor] = (moods[relato.humor] || 0) + 1;
+    if (relato.humor) {
+      moods[relato.humor] = (moods[relato.humor] || 0) + 1;
+    }
   });
 
   const maisPequente = Object.entries(moods).sort((a, b) => b[1] - a[1])[0];
+  
+  if (!maisPequente) return 'Sem dados suficientes para análise de humor.';
 
   const moodEmojis: Record<string, string> = {
     feliz: '😊 Feliz',
@@ -448,4 +568,24 @@ function getMoodAnalysis(relatosList: RelatoDiario[]): string {
   };
 
   return moodEmojis[maisPequente[0]] || 'Normal';
+}
+
+function getVitalSignsAnalysis(relatosList: any[]): string {
+  let alertas: string[] = [];
+  relatosList.forEach(r => {
+    if (r.sinaisVitais?.pressao) {
+      const [sis, dia] = r.sinaisVitais.pressao.split('/').map(Number);
+      if (sis >= 140 || dia >= 90) alertas.push(`- Pressão alta (${r.sinaisVitais.pressao}) em ${r.data}`);
+    }
+    if (r.ocorrencias && r.ocorrencias.length > 5 && !r.ocorrencias.toLowerCase().includes('nenhuma')) {
+      alertas.push(`- Ocorrência em ${r.data}: ${r.ocorrencias}`);
+    }
+    if (r.sintomas?.includes('contrações')) {
+      alertas.push(`- Contrações relatadas em ${r.data}`);
+    }
+  });
+
+  if (alertas.length === 0) return "Nenhum sinal vital crítico ou ocorrência grave detectada nos relatos recentes.";
+  
+  return alertas.slice(0, 5).join('\n');
 }

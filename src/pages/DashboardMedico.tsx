@@ -3,11 +3,13 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import { getAllGestantes, getRelatosGestante } from '../services/apiMock';
 import { User } from '../types/domain';
+import { Button } from '../components/ui/Button';
 
 interface GestanteComRelatos extends User {
   totalRelatos: number;
   ultimoRelato?: string;
   statusRisco: 'verde' | 'amarelo' | 'vermelho';
+  dadosExames?: { pressaoArterial: string; circunferenciaAbdominal: string };
 }
 
 export function DashboardMedico() {
@@ -43,6 +45,8 @@ export function DashboardMedico() {
             totalRelatos: relatos.length,
             ultimoRelato: relatos[0]?.data || 'Sem relatos',
             statusRisco,
+            // @ts-ignore - dadosExames added to mock
+            dadosExames: gestante.dadosExames
           };
         })
       );
@@ -92,13 +96,18 @@ export function DashboardMedico() {
 
   return (
     <MainLayout>
-      <div className="mb-8">
-        <h2 className="mb-2 text-3xl font-bold text-slate-800">
-          Dashboard Médico
-        </h2>
-        <p className="text-slate-600">
-          Acompanhe suas pacientes gestantes
-        </p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="mb-2 text-3xl font-bold text-slate-800">
+            Dashboard Médico
+          </h2>
+          <p className="text-slate-600">
+            Acompanhe suas pacientes gestantes
+          </p>
+        </div>
+        <Button onClick={() => alert('Funcionalidade de associar novo paciente')}>
+          + Associar Novo Paciente
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-6 mb-8 md:grid-cols-3">
@@ -149,6 +158,9 @@ export function DashboardMedico() {
                   Semanas
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                  Dados Recentes
+                </th>
+                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
                   Relatos
                 </th>
                 <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
@@ -175,6 +187,16 @@ export function DashboardMedico() {
                   </td>
                   <td className="px-6 py-4 text-slate-700">
                     {gestante.semanasGestacao || '—'}
+                  </td>
+                  <td className="px-6 py-4 text-xs text-slate-700">
+                    {gestante.dadosExames ? (
+                      <>
+                        <p>PA: {gestante.dadosExames.pressaoArterial}</p>
+                        <p>Circ: {gestante.dadosExames.circunferenciaAbdominal}</p>
+                      </>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-slate-700">
                     <span className="px-3 py-1 text-sm font-medium text-blue-800 bg-blue-100 rounded">
