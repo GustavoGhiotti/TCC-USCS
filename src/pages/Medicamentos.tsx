@@ -31,37 +31,36 @@ export function Medicamentos() {
     <MainLayout>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-semibold text-slate-800">Medicamentos</h2>
-          <p className="text-sm text-slate-600">Gerenciar prescrições e tratamentos</p>
+          <h2 className="text-2xl font-bold text-stone-800">Medicamentos</h2>
+          <p className="text-stone-500">Gerenciar prescrições e tratamentos</p>
         </div>
       </div>
 
       <div className="grid gap-6">
         {medicamentosAtivos.length > 0 && (
           <div>
-            <h3 className="mb-4 text-lg font-semibold text-slate-800">Ativos</h3>
+            <h3 className="mb-4 text-lg font-bold text-teal-700 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-teal-500"></span> Em Uso
+            </h3>
             <div className="grid gap-3">
               {medicamentosAtivos.map((med) => (
                 <div
                   key={med.id}
-                  className="p-4 bg-white border-l-4 border-green-600 rounded shadow"
+                  className="p-5 bg-white border border-teal-100 rounded-2xl shadow-sm hover:shadow-md transition-all"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h4 className="font-semibold text-slate-800">{med.nome}</h4>
-                      <p className="mt-1 text-sm text-slate-600">
-                        Dosagem: <span className="font-medium">{med.dosagem}</span>
+                      <h4 className="text-lg font-bold text-stone-800">{med.nome}</h4>
+                      <p className="mt-1 text-sm text-stone-600">
+                        <span className="font-semibold text-teal-600">{med.dosagem}</span> • {med.frequencia}
                       </p>
-                      <p className="text-sm text-slate-600">
-                        Frequência: <span className="font-medium">{med.frequencia}</span>
-                      </p>
-                      <p className="mt-2 text-xs text-slate-500">
+                      <p className="mt-2 text-xs text-stone-400">
                         Desde {med.dataInicio}
                       </p>
                     </div>
                     <Button
                       onClick={() => toggleMedicamento(med.id)}
-                      className="text-xs bg-red-600 hover:bg-red-700"
+                      className="text-xs bg-white text-rose-500 border border-rose-200 hover:bg-rose-50"
                     >
                       Desativar
                     </Button>
@@ -74,26 +73,28 @@ export function Medicamentos() {
 
         {medicamentosInativos.length > 0 && (
           <div>
-            <h3 className="mb-4 text-lg font-semibold text-slate-800">Inativos</h3>
+            <h3 className="mb-4 text-lg font-bold text-stone-500 flex items-center gap-2 mt-6">
+              <span className="w-2 h-2 rounded-full bg-stone-300"></span> Histórico
+            </h3>
             <div className="grid gap-3">
               {medicamentosInativos.map((med) => (
                 <div
                   key={med.id}
-                  className="p-4 border-l-4 rounded shadow bg-slate-50 opacity-60 border-slate-400"
+                  className="p-4 border border-stone-100 rounded-2xl bg-stone-50 opacity-75"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h4 className="font-semibold text-slate-600">{med.nome}</h4>
-                      <p className="mt-1 text-sm text-slate-500">
+                      <h4 className="font-semibold text-stone-600">{med.nome}</h4>
+                      <p className="mt-1 text-sm text-stone-500">
                         Dosagem: {med.dosagem}
                       </p>
-                      <p className="mt-2 text-xs text-slate-400">
+                      <p className="mt-2 text-xs text-stone-400">
                         Até {med.dataFim || 'Data não definida'}
                       </p>
                     </div>
                     <Button
                       onClick={() => toggleMedicamento(med.id)}
-                      className="text-xs bg-green-600 hover:bg-green-700"
+                      className="text-xs bg-white text-teal-600 border border-teal-200 hover:bg-teal-50"
                     >
                       Reativar
                     </Button>
@@ -105,8 +106,8 @@ export function Medicamentos() {
         )}
 
         {medicamentos.length === 0 && (
-          <div className="p-8 text-center bg-white rounded shadow">
-            <p className="text-slate-500">Nenhum medicamento registrado.</p>
+          <div className="p-12 text-center bg-white rounded-2xl shadow-sm border border-dashed border-stone-300">
+            <p className="text-stone-500">Nenhum medicamento registrado.</p>
           </div>
         )}
       </div>

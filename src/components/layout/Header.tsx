@@ -12,17 +12,17 @@ export function Header() {
   }
 
   return (
-    <header className="bg-white border-b shadow border-slate-200">
+    <header className="bg-white/80 backdrop-blur-md border-b border-rose-100 sticky top-0 z-10">
       <div className="flex items-center justify-between max-w-6xl px-6 py-4 mx-auto">
         <div>
-          <h1 className="text-xl font-bold text-slate-800">
-            🏥 Sistema de Monitoramento de Gestantes
+          <h1 className="text-lg font-semibold text-stone-700">
+            Olá, tenha um ótimo dia ☀️
           </h1>
         </div>
         <div className="flex items-center gap-4">
           <div className="text-right">
-            <p className="text-sm font-medium text-slate-800">{user?.nomeCompleto}</p>
-            <p className="text-xs capitalize text-slate-500">{user?.role}</p>
+            <p className="text-sm font-bold text-stone-700">{user?.nomeCompleto}</p>
+            <p className="text-xs text-rose-500 font-medium capitalize">{user?.role}</p>
           </div>
           <Button
             onClick={handleLogout}

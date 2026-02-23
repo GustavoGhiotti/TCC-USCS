@@ -144,39 +144,39 @@ export function PacienteDetalhes() {
           ← Voltar
         </Button>
         
-        <div className="p-6 bg-white rounded-lg shadow">
-          <h2 className="mb-2 text-3xl font-bold text-slate-800">
+        <div className="p-8 bg-white rounded-3xl shadow-sm border border-rose-50">
+          <h2 className="mb-2 text-3xl font-bold text-stone-800">
             {gestante.nomeCompleto}
           </h2>
           <div className="grid grid-cols-2 gap-4 mt-4 md:grid-cols-4">
             <div>
-              <p className="text-xs uppercase text-slate-500">Email</p>
-              <p className="text-sm font-medium text-slate-800">{gestante.email}</p>
+              <p className="text-xs uppercase text-stone-400 font-bold tracking-wider">Email</p>
+              <p className="text-sm font-medium text-stone-700">{gestante.email}</p>
             </div>
             <div>
-              <p className="text-xs uppercase text-slate-500">Semanas</p>
-              <p className="text-sm font-medium text-slate-800">{gestante.semanasGestacao || '—'}</p>
+              <p className="text-xs uppercase text-stone-400 font-bold tracking-wider">Semanas</p>
+              <p className="text-sm font-medium text-stone-700">{gestante.semanasGestacao || '—'}</p>
             </div>
             <div>
-              <p className="text-xs uppercase text-slate-500">Total Relatos</p>
-              <p className="text-sm font-medium text-slate-800">{relatos.length}</p>
+              <p className="text-xs uppercase text-stone-400 font-bold tracking-wider">Total Relatos</p>
+              <p className="text-sm font-medium text-stone-700">{relatos.length}</p>
             </div>
             <div>
-              <p className="text-xs uppercase text-slate-500">Medicamentos</p>
-              <p className="text-sm font-medium text-slate-800">{medicamentosAtivos.length}</p>
+              <p className="text-xs uppercase text-stone-400 font-bold tracking-wider">Medicamentos</p>
+              <p className="text-sm font-medium text-stone-700">{medicamentosAtivos.length}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="flex border-b border-slate-200">
+      <div className="bg-white rounded-3xl shadow-sm border border-rose-50 overflow-hidden">
+        <div className="flex border-b border-rose-100 bg-rose-50/30">
           <button
             onClick={() => setActiveTab('analise')}
             className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
               activeTab === 'analise'
-                ? 'border-b-2 border-sky-600 text-sky-600'
-                : 'text-slate-600 hover:text-slate-800'
+                ? 'border-b-2 border-rose-500 text-rose-600 bg-white'
+                : 'text-stone-500 hover:text-rose-600 hover:bg-white/50'
             }`}
           >
              Análise
@@ -185,8 +185,8 @@ export function PacienteDetalhes() {
             onClick={() => setActiveTab('relatos')}
             className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
               activeTab === 'relatos'
-                ? 'border-b-2 border-sky-600 text-sky-600'
-                : 'text-slate-600 hover:text-slate-800'
+                ? 'border-b-2 border-rose-500 text-rose-600 bg-white'
+                : 'text-stone-500 hover:text-rose-600 hover:bg-white/50'
             }`}
           >
              Relatos ({relatos.length})
@@ -195,8 +195,8 @@ export function PacienteDetalhes() {
             onClick={() => setActiveTab('medicamentos')}
             className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
               activeTab === 'medicamentos'
-                ? 'border-b-2 border-sky-600 text-sky-600'
-                : 'text-slate-600 hover:text-slate-800'
+                ? 'border-b-2 border-rose-500 text-rose-600 bg-white'
+                : 'text-stone-500 hover:text-rose-600 hover:bg-white/50'
             }`}
           >
              Medicamentos ({medicamentosAtivos.length})
@@ -205,8 +205,8 @@ export function PacienteDetalhes() {
             onClick={() => setActiveTab('prontuario')}
             className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${
               activeTab === 'prontuario'
-                ? 'border-b-2 border-sky-600 text-sky-600'
-                : 'text-slate-600 hover:text-slate-800'
+                ? 'border-b-2 border-rose-500 text-rose-600 bg-white'
+                : 'text-stone-500 hover:text-rose-600 hover:bg-white/50'
             }`}
           >
              Prontuário

@@ -6,9 +6,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRelatos, createRelato } from '../services/apiMock';
 import { RelatoDiario } from '../types/domain';
 
+interface RelatoExtended extends RelatoDiario {
+  ocorrencias?: string;
+  sinaisVitais?: {
+    pressao?: string;
+    batimentos?: string | number;
+    oxigenacao?: number;
+    outros?: string;
+  };
+}
+
 export function Relatos() {
   const { user } = useAuth();
-  const [relatos, setRelatos] = useState<RelatoDiario[]>([]);
+  const [relatos, setRelatos] = useState<RelatoExtended[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(false);
   
@@ -37,7 +47,7 @@ export function Relatos() {
     async function loadRelatos() {
       if (!user) return;
       const data = await getRelatos(user.id);
-      setRelatos(data);
+      setRelatos(data as RelatoExtended[]);
     }
     loadRelatos();
   }, [user]);
@@ -48,22 +58,23 @@ export function Relatos() {
 
     setLoading(true);
     try {
-      const novoRelato = await createRelato({
+      const relatoData = {
         id: '',
         gestanteId: user.id,
         data: formData.data,
         descricao: formData.descricao,
         humor: formData.humor as 'feliz' | 'normal' | 'triste' | 'ansioso',
         sintomas: formData.sintomas,
-        // @ts-ignore - Adicionando campos extras ao mock dinamicamente
         sinaisVitais: {
           pressao: formData.pressaoArterial,
           batimentos: formData.batimentosCardiacos
         },
         ocorrencias: formData.ocorrencias
-      });
+      };
 
-      setRelatos([novoRelato, ...relatos]);
+      const novoRelato = await createRelato(relatoData as unknown as RelatoDiario);
+
+      setRelatos([novoRelato as unknown as RelatoExtended, ...relatos]);
       setFormData({
         data: new Date().toISOString().split('T')[0],
         descricao: '',
@@ -92,8 +103,8 @@ export function Relatos() {
     <MainLayout>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-semibold text-slate-800">Relatos Diários</h2>
-          <p className="text-sm text-slate-600">Registre como você está se sentindo</p>
+          <h2 className="text-2xl font-bold text-stone-800">Relatos Diários</h2>
+          <p className="text-stone-500">Registre como você está se sentindo</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Cancelar' : '+ Novo Relato'}
@@ -101,12 +112,12 @@ export function Relatos() {
       </div>
 
       {showForm && (
-        <div className="p-6 mb-6 bg-white rounded shadow">
-          <h3 className="mb-4 text-lg font-semibold text-slate-800">Novo Relato</h3>
+        <div className="p-8 mb-8 bg-white border shadow-sm rounded-2xl border-rose-100">
+          <h3 className="mb-6 text-xl font-bold text-rose-600">Novo Relato</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1 text-sm font-medium text-slate-700">
+                <label className="block mb-2 text-sm font-medium text-stone-700">
                   Data
                 </label>
                 <Input
@@ -119,7 +130,7 @@ export function Relatos() {
                 />
               </div>
               <div>
-                <label className="block mb-1 text-sm font-medium text-slate-700">
+                <label className="block mb-2 text-sm font-medium text-stone-700">
                   Como você está se sentindo?
                 </label>
                 <select
@@ -127,7 +138,7 @@ export function Relatos() {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, humor: e.target.value }))
                   }
-                  className="w-full px-3 py-2 border rounded border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  className="w-full px-4 py-2 bg-white border rounded-xl border-stone-200 focus:outline-none focus:ring-2 focus:ring-rose-400"
                 >
                   <option value="feliz">😊 Feliz</option>
                   <option value="normal">😐 Normal</option>
@@ -137,11 +148,11 @@ export function Relatos() {
               </div>
             </div>
 
-            <div className="p-4 border rounded-lg bg-slate-50 border-slate-200">
-              <h4 className="mb-3 text-sm font-semibold text-slate-700">Sinais Vitais (Opcional)</h4>
+            <div className="p-6 border rounded-xl bg-rose-50/30 border-rose-100">
+              <h4 className="mb-4 text-sm font-bold text-rose-700">Sinais Vitais (Opcional)</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block mb-1 text-xs font-medium text-slate-600">
+                  <label className="block mb-2 text-xs font-bold tracking-wide uppercase text-stone-600">
                     Pressão Arterial (ex: 120/80)
                   </label>
                   <Input
@@ -151,7 +162,7 @@ export function Relatos() {
                   />
                 </div>
                 <div>
-                  <label className="block mb-1 text-xs font-medium text-slate-600">
+                  <label className="block mb-2 text-xs font-bold tracking-wide uppercase text-stone-600">
                     Batimentos Cardíacos (BPM)
                   </label>
                   <Input
@@ -165,7 +176,7 @@ export function Relatos() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium text-slate-700">
+              <label className="block mb-2 text-sm font-medium text-stone-700">
                 Descrição
               </label>
               <textarea
@@ -174,13 +185,13 @@ export function Relatos() {
                   setFormData((prev) => ({ ...prev, descricao: e.target.value }))
                 }
                 placeholder="Descreva como você se sente hoje..."
-                className="w-full h-24 px-3 py-2 border rounded border-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full h-24 px-4 py-3 border resize-none rounded-xl border-stone-200 focus:outline-none focus:ring-2 focus:ring-rose-400"
                 required
               />
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium text-slate-700">
+              <label className="block mb-2 text-sm font-medium text-stone-700">
                 Ocorrências Relevantes (quedas, mal-estar súbito, etc.)
               </label>
               <Input
@@ -191,18 +202,23 @@ export function Relatos() {
             </div>
 
             <div>
-              <label className="block mb-2 text-sm font-medium text-slate-700">
+              <label className="block mb-3 text-sm font-medium text-stone-700">
                 Sintomas (selecione os que está sentindo)
               </label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-wrap gap-3">
                 {sintomasDisponiveis.map((sintoma) => (
-                  <label key={sintoma} className="flex items-center gap-2 cursor-pointer">
+                  <label key={sintoma} className={`flex items-center gap-2 px-4 py-2 rounded-full border cursor-pointer transition-all ${
+                    formData.sintomas.includes(sintoma) 
+                      ? 'bg-rose-100 border-rose-300 text-rose-700 font-medium' 
+                      : 'bg-white border-stone-200 text-stone-600 hover:border-rose-200'
+                  }`}>
                     <input
                       type="checkbox"
                       checked={formData.sintomas.includes(sintoma)}
                       onChange={() => toggleSintoma(sintoma)}
+                      className="hidden"
                     />
-                    <span className="text-sm text-slate-700">{sintoma}</span>
+                    <span className="text-sm">{sintoma}</span>
                   </label>
                 ))}
               </div>
@@ -226,47 +242,43 @@ export function Relatos() {
 
       <div className="grid gap-4">
         {relatos.length === 0 ? (
-          <div className="p-8 text-center bg-white rounded shadow">
-            <p className="text-slate-500">Nenhum relato registrado ainda.</p>
+          <div className="p-12 text-center bg-white border border-dashed shadow-sm rounded-2xl border-stone-300">
+            <p className="text-stone-500">Nenhum relato registrado ainda.</p>
             <Button onClick={() => setShowForm(true)} className="mt-4">
               Criar Primeiro Relato
             </Button>
           </div>
         ) : (
           relatos.map((relato) => (
-            <div key={relato.id} className="p-6 bg-white border-l-4 rounded shadow border-sky-600">
+            <div key={relato.id} className="p-6 transition-shadow bg-white border shadow-sm rounded-2xl border-stone-100 hover:shadow-md">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="text-lg font-semibold text-slate-800">{relato.data}</p>
-                  <p className="text-sm text-slate-500">Humor: {relato.humor}</p>
+                  <p className="text-lg font-bold text-stone-800">{relato.data}</p>
+                  <p className="text-sm capitalize text-stone-500">Humor: {relato.humor}</p>
                 </div>
               </div>
-              <p className="mb-3 text-slate-700">{relato.descricao}</p>
+              <p className="mb-4 leading-relaxed text-stone-700">{relato.descricao}</p>
               {relato.sintomas.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {relato.sintomas.map((sintoma) => (
                     <span
                       key={sintoma}
-                      className="px-3 py-1 text-xs text-yellow-800 bg-yellow-100 rounded"
+                      className="px-3 py-1 text-xs font-medium border rounded-full text-amber-700 bg-amber-50 border-amber-100"
                     >
                       {sintoma}
                     </span>
                   ))}
                 </div>
               )}
-              {/* @ts-ignore */}
               {(relato.sinaisVitais?.pressao || relato.sinaisVitais?.batimentos) && (
-                <div className="mt-3 text-xs text-slate-600 bg-slate-50 p-2 rounded">
+                <div className="inline-block p-3 mt-4 text-xs text-stone-600 bg-stone-50 rounded-xl">
                   <strong>Sinais Vitais: </strong>
-                  {/* @ts-ignore */}
                   {relato.sinaisVitais.pressao && `PA: ${relato.sinaisVitais.pressao} `}
-                  {/* @ts-ignore */}
                   {relato.sinaisVitais.batimentos && `| BPM: ${relato.sinaisVitais.batimentos}`}
                 </div>
               )}
-              {/* @ts-ignore */}
-              {relato.ocorrencias && (
-                <p className="mt-2 text-xs text-red-600"><strong>⚠️ Ocorrência:</strong> {relato.ocorrencias}</p>
+              {relato.ocorrencias && typeof relato.ocorrencias === 'string' && !relato.ocorrencias.toLowerCase().includes('nenhuma') && (
+                <p className="p-2 mt-3 text-sm border rounded-lg text-rose-600 bg-rose-50 border-rose-100"><strong>⚠️ Ocorrência:</strong> {relato.ocorrencias}</p>
               )}
             </div>
           ))

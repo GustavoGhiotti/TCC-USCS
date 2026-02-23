@@ -25,22 +25,22 @@ export function Sidebar() {
   const links = user?.role === 'gestante' ? gestanteLinks : medicoLinks;
 
   return (
-    <aside className="flex flex-col w-64 text-white shadow-lg bg-slate-800">
-      <div className="p-6 border-b border-slate-700">
-        <h2 className="text-lg font-bold">🏥 Saúde Gestante</h2>
-        <p className="mt-1 text-xs capitalize text-slate-400">{user?.role}</p>
+    <aside className="flex flex-col w-64 bg-white border-r border-rose-100 shadow-sm">
+      <div className="p-8 border-b border-rose-50">
+        <h2 className="text-xl font-bold text-rose-600 flex items-center gap-2">🌸 GestCare</h2>
+        <p className="mt-1 text-xs font-medium uppercase tracking-wider text-stone-400">{user?.role}</p>
       </div>
 
-      <nav className="flex-1 p-4">
-        <div className="space-y-2">
+      <nav className="flex-1 px-4 py-6">
+        <div className="space-y-3">
           {links.map((link) => (
             <button
               key={link.path}
               onClick={() => navigate(link.path)}
-              className={`w-full text-left px-4 py-3 rounded transition-colors ${
+              className={`w-full text-left px-5 py-3.5 rounded-xl transition-all duration-200 font-medium ${
                 isActive(link.path)
-                  ? 'bg-sky-600 text-white font-semibold'
-                  : 'text-slate-300 hover:bg-slate-700'
+                  ? 'bg-rose-100 text-rose-700 shadow-sm'
+                  : 'text-stone-500 hover:bg-rose-50 hover:text-rose-600'
               }`}
             >
               {link.label}
@@ -49,7 +49,7 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="p-4 text-xs border-t border-slate-700 text-slate-400">
+      <div className="p-6 text-xs border-t border-rose-50 text-stone-400 text-center">
         <p>Versão 0.3</p>
         <p className="mt-2">TCC - 2026</p>
       </div>

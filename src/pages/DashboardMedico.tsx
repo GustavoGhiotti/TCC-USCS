@@ -74,13 +74,13 @@ export function DashboardMedico() {
   const getSemaforoColor = (status: string) => {
     switch (status) {
       case 'verde':
-        return 'bg-green-50 border-green-300';
+        return 'bg-teal-50 border-teal-200';
       case 'amarelo':
-        return 'bg-yellow-50 border-yellow-300';
+        return 'bg-amber-50 border-amber-200';
       case 'vermelho':
-        return 'bg-red-50 border-red-300';
+        return 'bg-rose-50 border-rose-200';
       default:
-        return 'bg-gray-50 border-gray-300';
+        return 'bg-stone-50 border-stone-200';
     }
   };
 
@@ -98,10 +98,10 @@ export function DashboardMedico() {
     <MainLayout>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="mb-2 text-3xl font-bold text-slate-800">
+          <h2 className="mb-2 text-3xl font-bold text-stone-800">
             Dashboard Médico
           </h2>
-          <p className="text-slate-600">
+          <p className="text-stone-500">
             Acompanhe suas pacientes gestantes
           </p>
         </div>
@@ -111,105 +111,105 @@ export function DashboardMedico() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 mb-8 md:grid-cols-3">
-        <div className="p-6 bg-white border-l-4 border-blue-600 rounded-lg shadow">
-          <h3 className="text-sm font-semibold uppercase text-slate-600">
+        <div className="p-6 bg-white border shadow-sm border-rose-100 rounded-2xl">
+          <h3 className="text-sm font-bold tracking-wider uppercase text-stone-400">
             Total de Pacientes
           </h3>
-          <p className="mt-2 text-3xl font-bold text-slate-800">{gestantes.length}</p>
+          <p className="mt-2 text-4xl font-bold text-stone-800">{gestantes.length}</p>
         </div>
 
-        <div className="p-6 bg-white border-l-4 border-green-600 rounded-lg shadow">
-          <h3 className="text-sm font-semibold uppercase text-slate-600">
+        <div className="p-6 bg-white border border-teal-100 shadow-sm rounded-2xl">
+          <h3 className="text-sm font-bold tracking-wider text-teal-600 uppercase">
             Status Normal
           </h3>
-          <p className="mt-2 text-3xl font-bold text-slate-800">
+          <p className="mt-2 text-4xl font-bold text-teal-700">
             {gestantes.filter((g) => g.statusRisco === 'verde').length}
           </p>
         </div>
 
-        <div className="p-6 bg-white border-l-4 border-red-600 rounded-lg shadow">
-          <h3 className="text-sm font-semibold uppercase text-slate-600">
+        <div className="p-6 bg-white border shadow-sm border-rose-200 rounded-2xl">
+          <h3 className="text-sm font-bold tracking-wider uppercase text-rose-600">
             Necessitam Atenção
           </h3>
-          <p className="mt-2 text-3xl font-bold text-slate-800">
+          <p className="mt-2 text-4xl font-bold text-rose-700">
             {gestantes.filter((g) => g.statusRisco !== 'verde').length}
           </p>
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="text-lg font-semibold text-slate-800">
+      <div className="overflow-hidden bg-white border shadow-sm rounded-3xl border-rose-50">
+        <div className="px-8 py-6 border-b border-rose-50 bg-rose-50/30">
+          <h3 className="text-lg font-bold text-stone-800">
              Minhas Pacientes
           </h3>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="border-b bg-slate-50 border-slate-200">
+            <thead className="bg-white border-b border-rose-50">
               <tr>
-                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                <th className="px-6 py-4 text-xs font-bold tracking-wider text-left uppercase text-stone-400">
                   Status
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                <th className="px-6 py-4 text-xs font-bold tracking-wider text-left uppercase text-stone-400">
                   Paciente
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                <th className="px-6 py-4 text-xs font-bold tracking-wider text-left uppercase text-stone-400">
                   Semanas
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                <th className="px-6 py-4 text-xs font-bold tracking-wider text-left uppercase text-stone-400">
                   Dados Recentes
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                <th className="px-6 py-4 text-xs font-bold tracking-wider text-left uppercase text-stone-400">
                   Relatos
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                <th className="px-6 py-4 text-xs font-bold tracking-wider text-left uppercase text-stone-400">
                   Último Relato
                 </th>
-                <th className="px-6 py-3 text-xs font-semibold text-left uppercase text-slate-700">
+                <th className="px-6 py-4 text-xs font-bold tracking-wider text-left uppercase text-stone-400">
                   Ação
                 </th>
               </tr>
             </thead>
             <tbody>
               {gestantes.map((gestante) => (
-                <tr key={gestante.id} className={`border-b border-slate-200 hover:bg-slate-50 ${getSemaforoColor(gestante.statusRisco)}`}>
+                <tr key={gestante.id} className={`border-b hover:bg-rose-50/30 transition-colors ${getSemaforoColor(gestante.statusRisco)}`}>
                   <td className="px-6 py-4 text-center">
                     <span className="text-2xl">
                       {getSemaforoIcon(gestante.statusRisco)}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="font-medium text-slate-800">
+                    <div className="font-bold text-stone-700">
                       {gestante.nomeCompleto}
                     </div>
-                    <div className="text-sm text-slate-500">{gestante.email}</div>
+                    <div className="text-sm text-stone-400">{gestante.email}</div>
                   </td>
-                  <td className="px-6 py-4 text-slate-700">
+                  <td className="px-6 py-4 font-medium text-stone-600">
                     {gestante.semanasGestacao || '—'}
                   </td>
-                  <td className="px-6 py-4 text-xs text-slate-700">
+                  <td className="px-6 py-4 text-xs text-stone-600">
                     {gestante.dadosExames ? (
                       <>
                         <p>PA: {gestante.dadosExames.pressaoArterial}</p>
                         <p>Circ: {gestante.dadosExames.circunferenciaAbdominal}</p>
                       </>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-stone-300">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-slate-700">
-                    <span className="px-3 py-1 text-sm font-medium text-blue-800 bg-blue-100 rounded">
+                  <td className="px-6 py-4">
+                    <span className="px-3 py-1 text-sm font-bold rounded-full text-rose-600 bg-rose-100">
                       {gestante.totalRelatos}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-700">
+                  <td className="px-6 py-4 text-sm text-stone-500">
                     {gestante.ultimoRelato}
                   </td>
                   <td className="px-6 py-4">
                     <button
                       onClick={() => navigate(`/medico/paciente/${gestante.id}`)}
-                      className="text-sm font-medium text-sky-600 hover:text-sky-800"
+                      className="text-sm font-bold text-rose-500 hover:text-rose-700 hover:underline"
                     >
                       Ver Detalhes →
                     </button>
