@@ -1,6 +1,6 @@
 import { createContext, useContext, ReactNode, useState, useEffect } from 'react';
 import { User } from '../types/domain';
-import { getCurrentUserMock, logoutMock } from '../services/apiMock';
+import { getCurrentUser, logout as logoutApi } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -17,7 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function loadUser() {
-      const currentUser = await getCurrentUserMock();
+      const currentUser = await getCurrentUser();
       setUser(currentUser);
       setLoading(false);
     }
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   function logout() {
-    logoutMock();
+    logoutApi();
     setUser(null);
   }
 

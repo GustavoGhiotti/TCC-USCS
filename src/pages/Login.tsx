@@ -2,13 +2,12 @@ import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { loginMock } from '../services/apiMock';
-import { UserRole } from '../types/domain';
+import { login } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
 export function Login() {
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<UserRole>('gestante');
+  const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -20,7 +19,7 @@ export function Login() {
     setLoading(true);
 
     try {
-      const user = await loginMock(email, role);
+      const user = await login(email, senha);
       setUser(user);
 
       if (user.role === 'gestante') {
@@ -28,8 +27,8 @@ export function Login() {
       } else {
         navigate('/medico/dashboard');
       }
-    } catch (error) {
-      setErro('Falha ao fazer login. Tente novamente.');
+    } catch {
+      setErro('E-mail ou senha incorretos. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -45,23 +44,6 @@ export function Login() {
           </h2>
           <p className="mt-1 text-slate-600">Saúde da Gestante</p>
         </div>
-
-        <p className="p-4 mb-6 text-sm border border-blue-200 rounded text-slate-600 bg-blue-50">
-          <strong>Login Gestante:</strong>
-          <br />
-          <span className="font-mono text-xs">lucia@example.com</span>
-          <br />
-          <span className="font-mono text-xs">paula@example.com</span>
-          <br />
-          <span className="font-mono text-xs">ana@example.com</span>
-          <br />
-          <span className="font-mono text-xs">maria@example.com - unico com resumo ia</span>
-          <br />
-          <br />
-          <strong>Login Medico:</strong>
-          <br />
-          <span className="font-mono text-xs">medico@example.com</span>
-        </p>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
@@ -79,30 +61,15 @@ export function Login() {
 
           <div>
             <label className="block mb-2 text-sm font-medium text-slate-700">
-              Perfil
+              Senha
             </label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  value="gestante"
-                  checked={role === 'gestante'}
-                  onChange={() => setRole('gestante')}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-slate-700">Gestante</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  value="medico"
-                  checked={role === 'medico'}
-                  onChange={() => setRole('medico')}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm text-slate-700">Médico</span>
-              </label>
-            </div>
+            <Input
+              type="password"
+              placeholder="••••••••"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              required
+            />
           </div>
 
           {erro && (
