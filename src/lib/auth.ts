@@ -16,9 +16,11 @@ const MOCK_CREDENTIALS: MockCredential[] = [
       email: 'doctor@gestacare.com',
       role: 'medico',
       nomeCompleto: 'Dr. Carlos Oliveira',
+      consentimentoAceito: true,
     },
   },
   {
+    // patient@gestacare.com sem consentimento — para demonstrar o fluxo LGPD
     email: 'patient@gestacare.com',
     senha: '123456',
     user: {
@@ -27,6 +29,7 @@ const MOCK_CREDENTIALS: MockCredential[] = [
       role: 'gestante',
       nomeCompleto: 'Maria Santos',
       semanasGestacao: 28,
+      consentimentoAceito: false,
     },
   },
   // Credenciais de compatibilidade com as credenciais de teste originais
@@ -38,6 +41,7 @@ const MOCK_CREDENTIALS: MockCredential[] = [
       email: 'medico@example.com',
       role: 'medico',
       nomeCompleto: 'Dr. Ana Ferreira',
+      consentimentoAceito: true,
     },
   },
   {
@@ -49,6 +53,7 @@ const MOCK_CREDENTIALS: MockCredential[] = [
       role: 'gestante',
       nomeCompleto: 'Maria Oliveira',
       semanasGestacao: 32,
+      consentimentoAceito: true,
     },
   },
 ];
@@ -73,7 +78,6 @@ export async function mockLogin(
   senha: string,
   perfilSelecionado?: UserRole,
 ): Promise<User> {
-  // Simula latência de rede
   await new Promise(resolve => setTimeout(resolve, 700));
 
   const credential = MOCK_CREDENTIALS.find(
@@ -101,13 +105,21 @@ export async function mockLogin(
 
 /**
  * Recupera o usuário mock a partir do token salvo no localStorage.
- * Usado pelo AuthContext no mount.
  */
 export function getMockCurrentUser(): User | null {
   const token = localStorage.getItem('token');
   if (token !== FAKE_TOKEN) return null;
-
-  // Não temos sessão real — retorna null para forçar re-login
-  // (comportamento correto para mock sem persistência de usuário)
   return null;
+}
+
+/**
+ * Atualiza o consentimento LGPD para o usuário nas credenciais mock (in-memory).
+ * Em produção, chamaria PATCH /users/:id/consent.
+ */
+export function acceptConsentimentoMock(userId: string): void {
+  const cred = MOCK_CREDENTIALS.find(c => c.user.id === userId);
+  if (cred) {
+    cred.user.consentimentoAceito = true;
+    cred.user.consentimentoAceitoEm = new Date().toISOString();
+  }
 }

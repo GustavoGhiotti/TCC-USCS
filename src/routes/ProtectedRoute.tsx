@@ -6,9 +6,15 @@ import { UserRole } from '../types/domain';
 interface ProtectedRouteProps {
   children: ReactNode;
   requiredRole?: UserRole;
+  /** true para rotas que não devem verificar consentimento (ex: /consentimento) */
+  skipConsentCheck?: boolean;
 }
 
-export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export function ProtectedRoute({
+  children,
+  requiredRole,
+  skipConsentCheck,
+}: ProtectedRouteProps) {
   const { user, loading } = useAuth();
 
   console.log('ProtectedRoute:', { user, loading, requiredRole });
@@ -27,6 +33,11 @@ export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) 
 
   if (requiredRole && user.role !== requiredRole) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Guard de consentimento LGPD — redireciona enquanto não aceito
+  if (!skipConsentCheck && user.consentimentoAceito === false) {
+    return <Navigate to="/consentimento" replace />;
   }
 
   return <>{children}</>;

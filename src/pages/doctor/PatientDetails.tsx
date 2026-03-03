@@ -16,6 +16,7 @@ import {
 } from '../../mocks/doctorData';
 import { formatDate, formatTime, relativeDate } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
+import { generateResumoIA, type ResumoIAGerado } from '../../services/aiService';
 
 // ─── Mapa de ícones de tipo de evento ─────────────────────────────────────────
 function TimelineIcon({ type, hasFlag }: { type: TimelineEvent['type']; hasFlag: boolean }) {
@@ -76,16 +77,51 @@ function Toast({ message, onDismiss }: { message: string; onDismiss: () => void 
 // ─── Aba: Análise ─────────────────────────────────────────────────────────────
 function AnalysisTab({
   patient,
+  reports,
   summary,
   timeline,
   summaryLoading,
 }: {
   patient: Patient;
+  reports: DailyReport[];
   summary?: AssistantSummary;
   timeline: TimelineEvent[];
   summaryLoading: boolean;
 }) {
   const vh = patient.vitalsHistory;
+
+  // ── Estado do resumo gerado pela IA mock ───────────────────────────────────
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResumo, setAiResumo] = useState<ResumoIAGerado | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  async function handleGerarResumoIA() {
+    setAiLoading(true);
+    setAiError(null);
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 30);
+    try {
+      const result = await generateResumoIA({
+        gestanteId: patient.id,
+        range: {
+          start: inicio.toISOString().split('T')[0],
+          end: hoje.toISOString().split('T')[0],
+        },
+        relatos: reports.map(r => ({
+          data: r.date,
+          symptoms: r.symptoms,
+          mood: r.mood,
+          description: r.description,
+        })),
+      });
+      setAiResumo(result);
+    } catch {
+      setAiError('Não foi possível gerar o resumo. Tente novamente.');
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -142,6 +178,86 @@ function AnalysisTab({
           ) : (
             <p className="text-sm text-slate-400">Nenhum resumo disponível para este paciente.</p>
           )}
+
+          {/* ── Assistente IA (mock) — geração sob demanda ───────────────── */}
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                Resumo gerado por IA (mock · últimos 30 dias)
+              </p>
+              <button
+                type="button"
+                disabled={aiLoading}
+                onClick={handleGerarResumoIA}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-brand-700 bg-brand-50 rounded-lg hover:bg-brand-100 disabled:opacity-60 transition-colors"
+              >
+                {aiLoading ? (
+                  <><Spinner size="sm" /> Gerando…</>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                    {aiResumo ? 'Atualizar' : 'Gerar resumo (IA)'}
+                  </>
+                )}
+              </button>
+            </div>
+
+            {aiError && (
+              <p className="text-xs text-red-600 mb-2">{aiError}</p>
+            )}
+
+            {aiResumo && (
+              <div className="bg-brand-50/50 rounded-xl border border-brand-100 p-4 space-y-3">
+                <p className="text-sm text-slate-700 leading-relaxed">{aiResumo.resumoTexto}</p>
+
+                {aiResumo.sintomasMaisFrequentes.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                      Sintomas mais frequentes
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {aiResumo.sintomasMaisFrequentes.map(s => (
+                        <span key={s.sintoma} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-white border border-slate-200 text-slate-600">
+                          {s.sintoma}
+                          <span className="text-slate-400">×{s.count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {aiResumo.eventosRelevantes.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+                      Eventos para revisão
+                    </p>
+                    <ul className="space-y-1">
+                      {aiResumo.eventosRelevantes.map((e, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 rounded-lg px-3 py-1.5 ring-1 ring-amber-100">
+                          <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                          </svg>
+                          {e}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <p className="text-xs text-slate-400 border-t border-brand-100 pt-2">
+                  ⓘ {aiResumo.disclaimer}
+                </p>
+              </div>
+            )}
+
+            {!aiLoading && !aiResumo && !aiError && (
+              <p className="text-xs text-slate-400">
+                Clique em &ldquo;Gerar resumo (IA)&rdquo; para produzir uma análise automática dos relatos dos últimos 30 dias.
+              </p>
+            )}
+          </div>
         </section>
 
         {/* Timeline de eventos */}
@@ -768,6 +884,7 @@ export function PatientDetails() {
           <TabsContent value="analise">
             <AnalysisTab
               patient={patient}
+              reports={reports}
               summary={summary}
               timeline={timeline}
               summaryLoading={summaryLoading}

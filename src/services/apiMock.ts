@@ -75,6 +75,7 @@ const medicos: User[] = [
     nomeCompleto: 'Dr. Teste Ghiotti',
     email: 'medico@example.com',
     role: 'medico',
+    consentimentoAceito: true,
   },
 ];
 
@@ -138,6 +139,64 @@ const relatos: any[] = [
     descricao: 'Tudo bem, sem maiores sintomas.',
     sintomas: ['inchaço leve'],
     humor: 'feliz',
+  },
+  // ── Relatos recentes para demo dos Indicadores da Unidade ──────────────────
+  {
+    id: '7',
+    gestanteId: '1',
+    data: '2026-03-01',
+    descricao: 'Cansaço persistente ao longo do dia, azia após o almoço.',
+    sintomas: ['cansaço', 'azia'],
+    humor: 'normal',
+  },
+  {
+    id: '8',
+    gestanteId: '2',
+    data: '2026-03-01',
+    descricao: 'Senti algumas contrações irregulares e dor nas costas.',
+    sintomas: ['contrações', 'dor nas costas'],
+    humor: 'ansioso',
+  },
+  {
+    id: '9',
+    gestanteId: '3',
+    data: '2026-02-28',
+    descricao: 'Pressão arterial elevada ao aferir em casa, dor de cabeça leve.',
+    sintomas: ['pressão alta', 'dor de cabeça'],
+    humor: 'triste',
+  },
+  {
+    id: '10',
+    gestanteId: '4',
+    data: '2026-02-27',
+    descricao: 'Dia tranquilo, porém com inchaço nas pernas à tarde.',
+    sintomas: ['inchaço', 'cansaço leve'],
+    humor: 'normal',
+  },
+  {
+    id: '11',
+    gestanteId: '1',
+    data: '2026-02-25',
+    descricao: 'Noite com insônia, gases e desconforto abdominal.',
+    sintomas: ['insônia', 'gases'],
+    humor: 'normal',
+  },
+  {
+    id: '12',
+    gestanteId: '2',
+    data: '2026-02-22',
+    descricao: 'Tontura ao levantar, cansaço intenso.',
+    sintomas: ['tontura', 'cansaço extremo'],
+    humor: 'triste',
+    ocorrencias: 'Tontura ao se levantar pela manhã, precisou sentar.',
+  },
+  {
+    id: '13',
+    gestanteId: '3',
+    data: '2026-02-20',
+    descricao: 'Edema nas mãos e pés, pressão alta aferida.',
+    sintomas: ['edema severo', 'pressão alta'],
+    humor: 'ansioso',
   },
 ];
 

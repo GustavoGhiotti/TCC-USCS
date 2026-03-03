@@ -11,24 +11,31 @@ function IconGrid({ className }: { className?: string }) {
     </svg>
   );
 }
-function IconBell({ className }: { className?: string }) {
+function IconDocument({ className }: { className?: string }) {
   return (
     <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
     </svg>
   );
 }
-function IconChart({ className }: { className?: string }) {
+function IconPill({ className }: { className?: string }) {
   return (
     <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
     </svg>
   );
 }
-function IconBarChart({ className }: { className?: string }) {
+function IconSparkles({ className }: { className?: string }) {
   return (
     <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+    </svg>
+  );
+}
+function IconUser({ className }: { className?: string }) {
+  return (
+    <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   );
 }
@@ -40,7 +47,7 @@ function IconLogout({ className }: { className?: string }) {
   );
 }
 
-// ─── Sidebar nav item ────────────────────────────────────────────────────────
+// ─── Nav item ─────────────────────────────────────────────────────────────────
 interface NavItemProps {
   to: string;
   icon: ReactNode;
@@ -67,8 +74,8 @@ function NavItem({ to, icon, label, end }: NavItemProps) {
   );
 }
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
-function DoctorSidebar() {
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function GestanteSidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -79,42 +86,48 @@ function DoctorSidebar() {
 
   return (
     <nav
-      aria-label="Navegação do médico"
+      aria-label="Navegação da gestante"
       className="w-56 flex-shrink-0 bg-slate-900 flex flex-col h-screen sticky top-0"
     >
       {/* Logo / brand */}
       <div className="px-5 py-5 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
-            <svg className="w-4.5 h-4.5 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
             </svg>
           </div>
           <div>
             <p className="text-white text-sm font-semibold leading-none">GestaCare</p>
-            <p className="text-slate-400 text-xs mt-0.5">Perfil médico</p>
+            <p className="text-slate-400 text-xs mt-0.5">Perfil gestante</p>
           </div>
         </div>
       </div>
 
       {/* Links */}
       <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
-        <NavItem to="/doctor" end icon={<IconGrid />} label="Dashboard" />
-        <NavItem to="/doctor/alerts"      icon={<IconBell />}     label="Alertas" />
-        <NavItem to="/doctor/reports"     icon={<IconChart />}    label="Relatórios" />
-        <NavItem to="/doctor/indicators"  icon={<IconBarChart />} label="Indicadores" />
+        <NavItem to="/gestante/dashboard" end icon={<IconGrid />}      label="Dashboard" />
+        <NavItem to="/gestante/relatos"       icon={<IconDocument />}  label="Relatos" />
+        <NavItem to="/gestante/medicamentos"  icon={<IconPill />}      label="Medicamentos" />
+        <NavItem to="/gestante/resumos-ia"    icon={<IconSparkles />}  label="Resumos IA" />
+        <NavItem to="/gestante/perfil"        icon={<IconUser />}      label="Perfil" />
       </div>
 
       {/* Usuário */}
       <div className="border-t border-slate-800 px-3 py-4">
         {user && (
           <div className="flex items-center gap-2.5 px-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-slate-700 text-slate-300 font-semibold text-sm flex items-center justify-center flex-shrink-0">
-              {user.nomeCompleto?.charAt(0) ?? 'M'}
+            <div
+              className="w-8 h-8 rounded-full bg-slate-700 text-slate-300 font-semibold text-sm flex items-center justify-center flex-shrink-0"
+              aria-hidden="true"
+            >
+              {user.nomeCompleto?.charAt(0) ?? 'G'}
             </div>
             <div className="min-w-0">
               <p className="text-sm text-white font-medium truncate">{user.nomeCompleto}</p>
-              <p className="text-xs text-slate-400 truncate">Médico</p>
+              <p className="text-xs text-slate-400 truncate">
+                {user.semanasGestacao ? `${user.semanasGestacao} semanas` : 'Gestante'}
+              </p>
             </div>
           </div>
         )}
@@ -132,20 +145,16 @@ function DoctorSidebar() {
 }
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
-interface DoctorLayoutProps {
+interface GestanteLayoutProps {
   children: ReactNode;
 }
 
-export function DoctorLayout({ children }: DoctorLayoutProps) {
+export function GestanteLayout({ children }: GestanteLayoutProps) {
   return (
     <div className="flex h-screen bg-slate-50 font-sans">
-      <DoctorSidebar />
-
+      <GestanteSidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <main
-          className="flex-1 overflow-y-auto scrollbar-thin"
-          id="main-content"
-        >
+        <main className="flex-1 overflow-y-auto" id="main-content">
           {children}
         </main>
       </div>

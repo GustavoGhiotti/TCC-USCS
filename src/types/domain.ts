@@ -6,6 +6,8 @@ export interface User {
   role: UserRole;
   nomeCompleto: string;
   semanasGestacao?: number;
+  consentimentoAceito: boolean;
+  consentimentoAceitoEm?: string;
 }
 
 export interface Gestante {
