@@ -1,72 +1,92 @@
 # Sistema de Monitoramento de Gestantes - Frontend
 
-Projeto TCC para um sistema inteligente de acompanhamento gestacional com análise de IA.
+Projeto TCC para um sistema inteligente de acompanhamento gestacional com analise de IA.
 
-## 🚀 Como Iniciar
+## Como Iniciar
 
-### Pré-requisitos
+### Pre-requisitos
 - Node.js 16+ instalado
 - npm ou yarn
 
-### Instalação
+### Instalacao
 
 1. Extraia a pasta do projeto
 2. Entre na pasta do projeto:
-   \`\`\`bash
+   ```bash
    cd monitoramento-gestantes
-   \`\`\`
+   ```
 
-3. Instale as dependências:
-   \`\`\`bash
+3. Instale as dependencias:
+   ```bash
    npm install
-   \`\`\`
+   ```
 
 4. Inicie o servidor de desenvolvimento:
-   \`\`\`bash
+   ```bash
    npm run dev
-   \`\`\`
+   ```
 
 5. Abra no navegador: `http://localhost:5173`
 
-## 📋 Credenciais de Teste
+## Credenciais de Teste
 
 ### Gestante
 - Email: `gestante@example.com`
 - Role: `gestante`
 
-### Médico
+### Medico
 - Email: `medico@example.com`
 - Role: `medico`
 
-## 📁 Estrutura do Projeto
+## Estrutura do Projeto
 
-```
+```text
 src/
-├── components/     # Componentes React reutilizáveis
-├── pages/         # Páginas/telas principais
-├── routes/        # Configuração de rotas
-├── services/      # Lógica de integração (API mock)
-├── types/         # Tipos TypeScript
-├── App.tsx        # Componente raiz
-└── main.tsx       # Entrada da aplicação
+  components/     # Componentes React reutilizaveis
+  pages/          # Paginas/telas principais
+  routes/         # Configuracao de rotas
+  services/       # Logica de integracao
+  types/          # Tipos TypeScript
+  main.tsx        # Entrada da aplicacao
 ```
 
-## 🛠️ Stack Tecnológico
+## Stack Tecnologico
 
-- **React 18** - Interface de usuário
-- **TypeScript** - Tipagem estática
-- **React Router** - Navegação
-- **Tailwind CSS** - Estilização
-- **Vite** - Build tool
+- React 18
+- TypeScript
+- React Router
+- Tailwind CSS
+- Vite
 
-## 📝 Próximos Passos
+## Proximos Passos
 
-- [ ] Implementar formulário de "Novo Relato"
-- [ ] Criar tela de "Resumos da IA"
-- [ ] Adicionar sistema de notificações
-- [ ] Integração com backend real (FastAPI)
-- [ ] Testes unitários
+- [ ] Implementar formulario de Novo Relato
+- [ ] Criar tela de Resumos da IA
+- [ ] Adicionar sistema de notificacoes
+- [ ] Integracao com backend real
+- [ ] Testes unitarios
 
-## 📞 Suporte
+## Backend FastAPI (fase inicial real)
 
-Para dúvidas sobre o desenvolvimento, consulte a documentação técnica do projeto TCC.
+Foi adicionada a pasta `backend/` com API para autenticacao, perfil gestante e LGPD.
+
+Endpoints implementados:
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/me`
+- `GET /gestantes/me`
+- `PUT /gestantes/me`
+- `GET /consentimentos/me`
+- `POST /consentimentos/me`
+- `POST /relatos`
+- `GET /relatos/me`
+- `GET /relatos/me/{id}`
+
+Para subir o backend:
+1. `cd backend`
+2. `pip install -r requirements.txt`
+3. `uvicorn app.main:app --reload --port 8000`
+
+Credenciais seed:
+- `doctor@gestacare.com` / `123456`
+- `patient@gestacare.com` / `123456`

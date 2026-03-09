@@ -39,19 +39,20 @@ export function ConsentimentoLGPD() {
   async function handleAceitar() {
     if (!user || !checked) return;
     setSaving(true);
-    // Simula chamada ao backend (TODO backend: PATCH /users/:id/consent)
-    await new Promise<void>(r => setTimeout(r, 600));
-    acceptConsentimentoMock(user.id);
-    const updatedUser = {
-      ...user,
-      consentimentoAceito: true,
-      consentimentoAceitoEm: new Date().toISOString(),
-    };
-    setUser(updatedUser);
-    setSaving(false);
-    navigate(user.role === 'medico' ? '/doctor' : '/gestante/dashboard', {
-      replace: true,
-    });
+    try {
+      await acceptConsentimentoMock(user.id);
+      const updatedUser = {
+        ...user,
+        consentimentoAceito: true,
+        consentimentoAceitoEm: new Date().toISOString(),
+      };
+      setUser(updatedUser);
+      navigate(user.role === 'medico' ? '/doctor' : '/gestante/dashboard', {
+        replace: true,
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleSair() {

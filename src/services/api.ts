@@ -51,4 +51,8 @@ export function logout(): void {
   localStorage.removeItem('token');
 }
 
+export async function acceptConsentimento(versaoTermo = '1.0'): Promise<void> {
+  await api.post('/consentimentos/me', { versao_termo: versaoTermo });
+}
+
 export default api;

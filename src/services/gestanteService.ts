@@ -1,10 +1,9 @@
 import {
-  getRelatosGestante,
-  createRelato,
   getMedicamentosGestante,
   getResumos,
   getOrientacoes,
 } from './apiMock';
+import api from './api';
 import type { RelatoDiario, Medicamento, ResumoIA, SemaforoStatus } from '../types/domain';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -33,7 +32,7 @@ export interface RelatoPayload {
 export async function getDashboardGestante(gestanteId: string): Promise<DashboardData> {
   const [medicamentos, relatos, resumos, orientacoes] = await Promise.all([
     getMedicamentosGestante(gestanteId),
-    getRelatosGestante(gestanteId),
+    getRelatosGestanteService(gestanteId, 'todos'),
     getResumos(gestanteId) as Promise<ResumoIAComData[]>,
     getOrientacoes(gestanteId),
   ]);
@@ -50,31 +49,53 @@ export async function getDashboardGestante(gestanteId: string): Promise<Dashboar
 // ─── Relatos ──────────────────────────────────────────────────────────────────
 // TODO backend: GET /gestantes/:id/relatos?periodo=7d|30d|todos
 export async function getRelatosGestanteService(
-  gestanteId: string,
+  _gestanteId: string,
   periodo: PeriodoFiltro = 'todos',
 ): Promise<RelatoDiario[]> {
-  const relatos = await getRelatosGestante(gestanteId);
-  if (periodo === 'todos') return relatos;
-  const days = periodo === '7d' ? 7 : 30;
-  const cutoff = new Date(Date.now() - days * 86_400_000);
-  return relatos.filter(r => new Date(r.data) >= cutoff);
+  const { data } = await api.get<Array<{
+    id: string;
+    gestante_id: string;
+    data: string;
+    humor: RelatoDiario['humor'];
+    sintomas: string[];
+    descricao: string | null;
+  }>>('/relatos/me', {
+    params: { periodo },
+  });
+
+  return data.map((r) => ({
+    id: r.id,
+    gestanteId: r.gestante_id,
+    data: r.data,
+    humor: r.humor,
+    sintomas: r.sintomas ?? [],
+    descricao: r.descricao ?? '',
+  }));
 }
 
 // TODO backend: POST /gestantes/:id/relatos
 // Payload esperado: { data, humor, sintomas[], descricao }
 export async function createRelatoGestante(
-  gestanteId: string,
+  _gestanteId: string,
   payload: RelatoPayload,
 ): Promise<RelatoDiario> {
-  const relato: RelatoDiario = {
-    id: '',
-    gestanteId,
-    data: payload.data,
-    humor: payload.humor,
-    sintomas: payload.sintomas,
-    descricao: payload.descricao,
+  const { data } = await api.post<{
+    id: string;
+    gestante_id: string;
+    data: string;
+    humor: RelatoDiario['humor'];
+    sintomas: string[];
+    descricao: string | null;
+  }>('/relatos', payload);
+
+  return {
+    id: data.id,
+    gestanteId: data.gestante_id,
+    data: data.data,
+    humor: data.humor,
+    sintomas: data.sintomas ?? [],
+    descricao: data.descricao ?? '',
   };
-  return createRelato(relato);
 }
 
 // ─── Medicamentos ─────────────────────────────────────────────────────────────
