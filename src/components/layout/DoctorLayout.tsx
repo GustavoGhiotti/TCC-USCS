@@ -1,9 +1,8 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
 
-// ─── Ícones SVG inline ────────────────────────────────────────────────────────
 function IconGrid({ className }: { className?: string }) {
   return (
     <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
@@ -39,25 +38,31 @@ function IconLogout({ className }: { className?: string }) {
     </svg>
   );
 }
+function IconMenu({ className }: { className?: string }) {
+  return (
+    <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+    </svg>
+  );
+}
 
-// ─── Sidebar nav item ────────────────────────────────────────────────────────
 interface NavItemProps {
   to: string;
   icon: ReactNode;
   label: string;
   end?: boolean;
+  onClick?: () => void;
 }
-function NavItem({ to, icon, label, end }: NavItemProps) {
+function NavItem({ to, icon, label, end, onClick }: NavItemProps) {
   return (
     <NavLink
       to={to}
       end={end}
+      onClick={onClick}
       className={({ isActive }) =>
         cn(
           'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-          isActive
-            ? 'bg-brand-600 text-white'
-            : 'text-slate-400 hover:text-white hover:bg-slate-700/60',
+          isActive ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-700/60',
         )
       }
     >
@@ -67,8 +72,10 @@ function NavItem({ to, icon, label, end }: NavItemProps) {
   );
 }
 
-// ─── Sidebar ─────────────────────────────────────────────────────────────────
-function DoctorSidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+function DoctorSidebar({ onNavigate }: SidebarProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -78,11 +85,7 @@ function DoctorSidebar() {
   }
 
   return (
-    <nav
-      aria-label="Navegação do médico"
-      className="w-56 flex-shrink-0 bg-slate-900 flex flex-col h-screen sticky top-0"
-    >
-      {/* Logo / brand */}
+    <nav aria-label="Navegacao do medico" className="w-64 bg-slate-900 flex flex-col h-full">
       <div className="px-5 py-5 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center flex-shrink-0">
@@ -92,20 +95,18 @@ function DoctorSidebar() {
           </div>
           <div>
             <p className="text-white text-sm font-semibold leading-none">GestaCare</p>
-            <p className="text-slate-400 text-xs mt-0.5">Perfil médico</p>
+            <p className="text-slate-400 text-xs mt-0.5">Perfil medico</p>
           </div>
         </div>
       </div>
 
-      {/* Links */}
       <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
-        <NavItem to="/doctor" end icon={<IconGrid />} label="Dashboard" />
-        <NavItem to="/doctor/alerts"      icon={<IconBell />}     label="Alertas" />
-        <NavItem to="/doctor/reports"     icon={<IconChart />}    label="Relatórios" />
-        <NavItem to="/doctor/indicators"  icon={<IconBarChart />} label="Indicadores" />
+        <NavItem to="/doctor" end icon={<IconGrid />} label="Dashboard" onClick={onNavigate} />
+        <NavItem to="/doctor/alerts" icon={<IconBell />} label="Alertas" onClick={onNavigate} />
+        <NavItem to="/doctor/reports" icon={<IconChart />} label="Relatorios" onClick={onNavigate} />
+        <NavItem to="/doctor/indicators" icon={<IconBarChart />} label="Indicadores" onClick={onNavigate} />
       </div>
 
-      {/* Usuário */}
       <div className="border-t border-slate-800 px-3 py-4">
         {user && (
           <div className="flex items-center gap-2.5 px-3 mb-3">
@@ -114,7 +115,7 @@ function DoctorSidebar() {
             </div>
             <div className="min-w-0">
               <p className="text-sm text-white font-medium truncate">{user.nomeCompleto}</p>
-              <p className="text-xs text-slate-400 truncate">Médico</p>
+              <p className="text-xs text-slate-400 truncate">Medico</p>
             </div>
           </div>
         )}
@@ -131,24 +132,51 @@ function DoctorSidebar() {
   );
 }
 
-// ─── Layout ───────────────────────────────────────────────────────────────────
 interface DoctorLayoutProps {
   children: ReactNode;
 }
 
 export function DoctorLayout({ children }: DoctorLayoutProps) {
-  return (
-    <div className="flex h-screen bg-slate-50 font-sans">
-      <DoctorSidebar />
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <main
-          className="flex-1 overflow-y-auto scrollbar-thin"
-          id="main-content"
-        >
+  return (
+    <div className="flex min-h-screen bg-slate-50 font-sans">
+      <aside className="hidden lg:block lg:w-64 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen">
+        <DoctorSidebar />
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="lg:hidden sticky top-0 z-20 h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(true)}
+            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 text-slate-700"
+            aria-label="Abrir menu"
+          >
+            <IconMenu />
+          </button>
+          <span className="text-sm font-semibold text-slate-800">GestaCare</span>
+          <span className="w-9" aria-hidden="true" />
+        </header>
+
+        <main className="flex-1 overflow-y-auto scrollbar-thin" id="main-content">
           {children}
         </main>
       </div>
+
+      {isMenuOpen && (
+        <div className="lg:hidden fixed inset-0 z-40">
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(false)}
+            className="absolute inset-0 bg-black/40"
+            aria-label="Fechar menu"
+          />
+          <div className="absolute inset-y-0 left-0 w-64">
+            <DoctorSidebar onNavigate={() => setIsMenuOpen(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

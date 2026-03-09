@@ -5,6 +5,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.consentimentos import router as consentimentos_router
 from app.api.routes.gestantes import router as gestantes_router
 from app.api.routes.relatos import router as relatos_router
+from app.api.routes.care import router as care_router
 from app.core.config import settings
 from app.db.init_db import init_db, seed_db
 from app.db.session import SessionLocal
@@ -23,6 +24,7 @@ app.include_router(auth_router)
 app.include_router(gestantes_router)
 app.include_router(consentimentos_router)
 app.include_router(relatos_router)
+app.include_router(care_router)
 
 
 @app.on_event("startup")

@@ -1,6 +1,26 @@
+from app.models.alerta import Alerta, AlertaNota
 from app.models.consentimento import ConsentimentoLGPD
+from app.models.consulta import Consulta
 from app.models.gestante import Gestante
+from app.models.medicamento import Medicamento
+from app.models.orientacao import Orientacao
+from app.models.prontuario import Prontuario
 from app.models.relato import RelatoDiario
+from app.models.resumo_ia import ResumoIA
+from app.models.sinal_vital import SinalVital
 from app.models.user import User
 
-__all__ = ["User", "Gestante", "ConsentimentoLGPD", "RelatoDiario"]
+__all__ = [
+    "User",
+    "Gestante",
+    "ConsentimentoLGPD",
+    "RelatoDiario",
+    "Medicamento",
+    "Consulta",
+    "SinalVital",
+    "Orientacao",
+    "Prontuario",
+    "ResumoIA",
+    "Alerta",
+    "AlertaNota",
+]
