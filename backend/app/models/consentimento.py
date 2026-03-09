@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,6 +16,6 @@ class ConsentimentoLGPD(Base, TimestampMixin):
     aceito: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     versao_termo: Mapped[str] = mapped_column(String(20), nullable=False)
     aceito_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    ip_origem: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ip_origem: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     user = relationship("User", back_populates="consentimentos")

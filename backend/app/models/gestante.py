@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from typing import Optional
 
 from sqlalchemy import Date, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,12 +15,12 @@ class Gestante(Base, TimestampMixin):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), unique=True, nullable=False, index=True)
 
     nome_completo: Mapped[str] = mapped_column(String(255), nullable=False)
-    data_nascimento: Mapped[date | None] = mapped_column(Date, nullable=True)
-    telefone: Mapped[str | None] = mapped_column(String(30), nullable=True)
-    dum: Mapped[date | None] = mapped_column(Date, nullable=True)
-    dpp: Mapped[date | None] = mapped_column(Date, nullable=True)
-    tipo_sanguineo: Mapped[str | None] = mapped_column(String(8), nullable=True)
-    semanas_gestacao_atual: Mapped[int | None] = mapped_column(nullable=True)
-    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    data_nascimento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    telefone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    dum: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    dpp: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    tipo_sanguineo: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    semanas_gestacao_atual: Mapped[Optional[int]] = mapped_column(nullable=True)
+    observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     user = relationship("User", back_populates="gestante")

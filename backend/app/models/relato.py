@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from typing import Optional
 
 from sqlalchemy import Date, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
@@ -16,4 +17,4 @@ class RelatoDiario(Base, TimestampMixin):
     data_relato: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     humor: Mapped[str] = mapped_column(String(20), nullable=False)
     sintomas_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
-    descricao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    descricao: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
