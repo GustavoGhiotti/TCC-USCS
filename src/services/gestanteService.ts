@@ -1,8 +1,3 @@
-import {
-  getMedicamentosGestante,
-  getResumos,
-  getOrientacoes,
-} from './apiMock';
 import api from './api';
 import type { RelatoDiario, Medicamento, ResumoIA, SemaforoStatus } from '../types/domain';
 
@@ -25,16 +20,17 @@ export interface RelatoPayload {
   humor: RelatoDiario['humor'];
   sintomas: string[];
   descricao: string;
+  sinaisVitais?: RelatoDiario['sinaisVitais'];
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 // TODO backend: GET /gestantes/:id/dashboard
 export async function getDashboardGestante(gestanteId: string): Promise<DashboardData> {
   const [medicamentos, relatos, resumos, orientacoes] = await Promise.all([
-    getMedicamentosGestante(gestanteId),
+    getMedicamentosGestanteService(gestanteId),
     getRelatosGestanteService(gestanteId, 'todos'),
-    getResumos(gestanteId) as Promise<ResumoIAComData[]>,
-    getOrientacoes(gestanteId),
+    getResumosIAGestante(gestanteId),
+    getOrientacoesGestanteService(),
   ]);
 
   return {
@@ -59,6 +55,12 @@ export async function getRelatosGestanteService(
     humor: RelatoDiario['humor'];
     sintomas: string[];
     descricao: string | null;
+    pressao_sistolica?: number | null;
+    pressao_diastolica?: number | null;
+    frequencia_cardiaca?: number | null;
+    saturacao_oxigenio?: number | null;
+    peso_kg?: number | null;
+    temperatura_c?: number | null;
   }>>('/relatos/me', {
     params: { periodo },
   });
@@ -70,6 +72,24 @@ export async function getRelatosGestanteService(
     humor: r.humor,
     sintomas: r.sintomas ?? [],
     descricao: r.descricao ?? '',
+    sinaisVitais:
+      [
+        r.pressao_sistolica,
+        r.pressao_diastolica,
+        r.frequencia_cardiaca,
+        r.saturacao_oxigenio,
+        r.peso_kg,
+        r.temperatura_c,
+      ].some(value => value !== null && value !== undefined)
+        ? {
+            pressaoSistolica: r.pressao_sistolica ?? undefined,
+            pressaoDiastolica: r.pressao_diastolica ?? undefined,
+            frequenciaCardiaca: r.frequencia_cardiaca ?? undefined,
+            saturacaoOxigenio: r.saturacao_oxigenio ?? undefined,
+            pesoKg: r.peso_kg ?? undefined,
+            temperaturaC: r.temperatura_c ?? undefined,
+          }
+        : undefined,
   }));
 }
 
@@ -86,7 +106,24 @@ export async function createRelatoGestante(
     humor: RelatoDiario['humor'];
     sintomas: string[];
     descricao: string | null;
-  }>('/relatos', payload);
+    pressao_sistolica?: number | null;
+    pressao_diastolica?: number | null;
+    frequencia_cardiaca?: number | null;
+    saturacao_oxigenio?: number | null;
+    peso_kg?: number | null;
+    temperatura_c?: number | null;
+  }>('/relatos', {
+    data: payload.data,
+    humor: payload.humor,
+    sintomas: payload.sintomas,
+    descricao: payload.descricao,
+    pressao_sistolica: payload.sinaisVitais?.pressaoSistolica,
+    pressao_diastolica: payload.sinaisVitais?.pressaoDiastolica,
+    frequencia_cardiaca: payload.sinaisVitais?.frequenciaCardiaca,
+    saturacao_oxigenio: payload.sinaisVitais?.saturacaoOxigenio,
+    peso_kg: payload.sinaisVitais?.pesoKg,
+    temperatura_c: payload.sinaisVitais?.temperaturaC,
+  });
 
   return {
     id: data.id,
@@ -95,19 +132,78 @@ export async function createRelatoGestante(
     humor: data.humor,
     sintomas: data.sintomas ?? [],
     descricao: data.descricao ?? '',
+    sinaisVitais:
+      [
+        data.pressao_sistolica,
+        data.pressao_diastolica,
+        data.frequencia_cardiaca,
+        data.saturacao_oxigenio,
+        data.peso_kg,
+        data.temperatura_c,
+      ].some(value => value !== null && value !== undefined)
+        ? {
+            pressaoSistolica: data.pressao_sistolica ?? undefined,
+            pressaoDiastolica: data.pressao_diastolica ?? undefined,
+            frequenciaCardiaca: data.frequencia_cardiaca ?? undefined,
+            saturacaoOxigenio: data.saturacao_oxigenio ?? undefined,
+            pesoKg: data.peso_kg ?? undefined,
+            temperaturaC: data.temperatura_c ?? undefined,
+          }
+        : undefined,
   };
 }
 
 // ─── Medicamentos ─────────────────────────────────────────────────────────────
 // TODO backend: GET /gestantes/:id/medicamentos
-export async function getMedicamentosGestanteService(gestanteId: string): Promise<Medicamento[]> {
-  return getMedicamentosGestante(gestanteId);
+export async function getMedicamentosGestanteService(_gestanteId: string): Promise<Medicamento[]> {
+  const { data } = await api.get<Array<{
+    id: string;
+    gestanteId: string;
+    nome: string;
+    dosagem: string;
+    frequencia: string;
+    dataInicio?: string | null;
+    dataPrescricao?: string | null;
+    dataFim?: string | null;
+    ativo: boolean;
+  }>>('/medicamentos/me');
+
+  return data.map((item) => ({
+    id: item.id,
+    gestanteId: item.gestanteId,
+    nome: item.nome,
+    dosagem: item.dosagem,
+    frequencia: item.frequencia,
+    dataInicio: item.dataInicio ?? undefined,
+    dataPrescricao: item.dataPrescricao ?? undefined,
+    dataFim: item.dataFim ?? null,
+    ativo: item.ativo,
+  }));
 }
 
 // ─── Resumos IA ───────────────────────────────────────────────────────────────
 // TODO backend: GET /gestantes/:id/resumos-ia
-export async function getResumosIAGestante(gestanteId: string): Promise<ResumoIAComData[]> {
-  return getResumos(gestanteId) as Promise<ResumoIAComData[]>;
+export async function getResumosIAGestante(_gestanteId: string): Promise<ResumoIAComData[]> {
+  const { data } = await api.get<Array<{
+    id: string;
+    gestanteId: string;
+    relatoId: string;
+    data: string;
+    tipo: 'diario' | 'semanal';
+    resumo: string;
+    sintomasIdentificados: string[];
+    avisos: string[];
+    recomendacoes: string;
+    semaforo: SemaforoStatus;
+    status?: 'pending' | 'approved';
+    aprovadoEm?: string | null;
+  }>>('/resumos-ia/me');
+
+  return data.map((item) => ({
+    ...item,
+    sintomasIdentificados: item.sintomasIdentificados ?? [],
+    avisos: item.avisos ?? [],
+  }));
 }
 
 // TODO backend: GET /gestantes/:id/resumos-ia/:resumoId
@@ -117,4 +213,20 @@ export async function getResumoIAGestanteById(
 ): Promise<ResumoIAComData | null> {
   const resumos = await getResumosIAGestante(gestanteId);
   return resumos.find(r => r.id === resumoId) ?? null;
+}
+
+interface OrientacaoResumo {
+  id: string;
+  texto: string;
+  data: string;
+}
+
+async function getOrientacoesGestanteService(): Promise<OrientacaoResumo[]> {
+  const { data } = await api.get<Array<{
+    id: string;
+    texto: string;
+    data: string;
+  }>>('/orientacoes/me');
+
+  return data;
 }

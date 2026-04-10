@@ -89,6 +89,13 @@ class ResumoOut(BaseModel):
     sintomasIdentificados: list[str]
     avisos: list[str]
     recomendacoes: str
+    status: Literal["pending", "approved"] = "pending"
+    aprovadoEm: datetime | None = None
+
+
+class ResumoReviewIn(BaseModel):
+    resumo: str | None = None
+    recomendacoes: str | None = None
 
 
 class ResumoGerarIn(BaseModel):

@@ -3,9 +3,9 @@ import { DoctorLayout } from '../../components/layout/DoctorLayout';
 import { PatientList } from '../../components/doctor/PatientList';
 import { AssociatePatientModal } from '../../components/doctor/AssociatePatientModal';
 import { PageSpinner } from '../../components/ui/Spinner';
-import { Card, CardHeader, CardBody } from '../../components/ui/Card';
+import { Card, CardBody } from '../../components/ui/Card';
 import { type Patient, type KPIData, type AlertLevel } from '../../types/doctor';
-import { fetchPatients, fetchKPI } from '../../mocks/doctorData';
+import { fetchPatients, fetchKPI } from '../../services/doctorApi';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────

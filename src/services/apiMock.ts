@@ -27,6 +27,24 @@ function mapRelato(r: any): RelatoDiario {
     descricao: r.descricao ?? '',
     humor: r.humor,
     sintomas: r.sintomas ?? [],
+    sinaisVitais:
+      [
+        r.pressao_sistolica,
+        r.pressao_diastolica,
+        r.frequencia_cardiaca,
+        r.saturacao_oxigenio,
+        r.peso_kg,
+        r.temperatura_c,
+      ].some((value) => value !== null && value !== undefined)
+        ? {
+            pressaoSistolica: r.pressao_sistolica ?? undefined,
+            pressaoDiastolica: r.pressao_diastolica ?? undefined,
+            frequenciaCardiaca: r.frequencia_cardiaca ?? undefined,
+            saturacaoOxigenio: r.saturacao_oxigenio ?? undefined,
+            pesoKg: r.peso_kg ?? undefined,
+            temperaturaC: r.temperatura_c ?? undefined,
+          }
+        : undefined,
     criadoEm: r.created_at,
   };
 }
@@ -80,6 +98,12 @@ export async function createRelato(novoRelato: RelatoDiario): Promise<RelatoDiar
     humor: novoRelato.humor,
     sintomas: novoRelato.sintomas,
     descricao: novoRelato.descricao,
+    pressao_sistolica: novoRelato.sinaisVitais?.pressaoSistolica,
+    pressao_diastolica: novoRelato.sinaisVitais?.pressaoDiastolica,
+    frequencia_cardiaca: novoRelato.sinaisVitais?.frequenciaCardiaca,
+    saturacao_oxigenio: novoRelato.sinaisVitais?.saturacaoOxigenio,
+    peso_kg: novoRelato.sinaisVitais?.pesoKg,
+    temperatura_c: novoRelato.sinaisVitais?.temperaturaC,
   });
   return mapRelato(data);
 }

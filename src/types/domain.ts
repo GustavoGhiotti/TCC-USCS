@@ -37,6 +37,14 @@ export interface RelatoDiario {
   descricao: string;
   humor: 'feliz' | 'normal' | 'triste' | 'ansioso';
   sintomas: string[];
+  sinaisVitais?: {
+    pressaoSistolica?: number;
+    pressaoDiastolica?: number;
+    frequenciaCardiaca?: number;
+    saturacaoOxigenio?: number;
+    pesoKg?: number;
+    temperaturaC?: number;
+  };
   criadoEm?: string;
 }
 
@@ -51,6 +59,8 @@ export interface ResumoIA {
   avisos: string[];
   recomendacoes: string;
   semaforo: SemaforoStatus;
+  status?: 'pending' | 'approved';
+  aprovadoEm?: string;
 }
 
 export interface Medicamento {

@@ -9,10 +9,8 @@ import { Spinner } from '../../components/ui/Spinner';
 import { KPISkeleton, TableRowSkeleton } from '../../components/ui/Skeleton';
 import { Badge } from '../../components/ui/Badge';
 import { type Alert, type AlertsKPI, type AlertSeverity, type AlertStatus } from '../../types/alerts';
-import { fetchAlerts, fetchAlertsKPI, markAlertReviewed, addAlertNote } from '../../mocks/alertsData';
-import { mockPatients, mockReports, mockSummaries } from '../../mocks/doctorData';
+import { fetchAlerts, fetchAlertsKPI, markAlertReviewed, addAlertNote, fetchPatientDetailsBundle, type PatientDetailsBundle } from '../../services/doctorApi';
 import { relativeDate, formatTime, formatDate } from '../../lib/utils';
-import { useAuth } from '../../contexts/AuthContext';
 
 // ─── Helpers de badge ─────────────────────────────────────────────────────────
 const SEVERITY_TO_LEVEL: Record<AlertSeverity, 'high' | 'medium' | 'low'> = {
@@ -78,20 +76,32 @@ interface AlertDrawerProps {
 }
 
 function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerProps) {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const [showNoteModal, setNoteModal] = useState(false);
   const [noteText, setNoteText]       = useState('');
   const [savingNote, setSavingNote]   = useState(false);
   const [localNotes, setLocalNotes]   = useState(alert?.notes ?? []);
+  const [context, setContext]         = useState<PatientDetailsBundle | null>(null);
+  const [contextLoading, setContextLoading] = useState(false);
 
   useEffect(() => { setLocalNotes(alert?.notes ?? []); }, [alert]);
+  useEffect(() => {
+    if (!alert || !isOpen) {
+      setContext(null);
+      return;
+    }
+
+    setContextLoading(true);
+    fetchPatientDetailsBundle(alert.patientId)
+      .then(setContext)
+      .finally(() => setContextLoading(false));
+  }, [alert, isOpen]);
 
   if (!alert) return null;
 
-  const patient  = mockPatients.find(p => p.id === alert.patientId);
-  const reports  = mockReports.filter(r => r.patientId === alert.patientId).slice(0, 3);
-  const summary  = mockSummaries[alert.patientId];
+  const patient = context?.patient;
+  const reports = context?.reports.slice(0, 3) ?? [];
+  const summary = context?.summary;
 
   const vh = patient?.vitalsHistory;
 
@@ -99,7 +109,7 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
     if (!noteText.trim()) return;
     setSavingNote(true);
     try {
-      const note = await addAlertNote(alert!.id, noteText, user?.nomeCompleto ?? 'Dr. Médico');
+      const note = await addAlertNote(alert.id, noteText);
       setLocalNotes(prev => [...prev, note]);
       setNoteText('');
       setNoteModal(false);
@@ -132,8 +142,14 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
           <p className="text-xs text-amber-600 mt-0.5">{relativeDate(alert.createdAt)} às {formatTime(alert.createdAt)}</p>
         </div>
 
+        {contextLoading && (
+          <div className="flex justify-center py-6">
+            <Spinner label="Carregando contexto do paciente…" />
+          </div>
+        )}
+
         {/* Sparklines de sinais vitais relevantes */}
-        {vh && (
+        {vh && !contextLoading && (
           <section aria-label="Tendências de sinais vitais — últimos 7 dias" className="mb-5">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Sinais vitais · últimos 7 dias
@@ -156,7 +172,7 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
         )}
 
         {/* Últimos relatos */}
-        {reports.length > 0 && (
+        {reports.length > 0 && !contextLoading && (
           <section aria-label="Últimos relatos do paciente" className="mb-5">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
               Últimos relatos
@@ -185,7 +201,7 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
         )}
 
         {/* Resumo do assistente */}
-        {summary && (
+        {summary && !contextLoading && (
           <section aria-label="Resumo do assistente" className="mb-5 bg-slate-50 border border-slate-200 rounded-xl p-4">
             <p className="text-xs font-semibold text-slate-700 mb-2">Resumo do assistente</p>
             <p className="text-xs text-slate-600 leading-relaxed">{summary.summaryText}</p>

@@ -9,7 +9,7 @@
  * TODO backend: POST /ia/resumo  { gestanteId, range, relatos }
  */
 
-import { getRelatos } from './apiMock';
+import { fetchPatientDetailsBundle } from './doctorApi';
 
 // ─── Disclaimer obrigatório ───────────────────────────────────────────────────
 export const DISCLAIMER_IA =
@@ -176,14 +176,14 @@ export async function generateResumoIA(params: {
   let relatosUsados: RelatoInput[] = filtradosDoParam;
   if (relatosUsados.length === 0) {
     try {
-      const mockRelatos = await getRelatos(gestanteId);
-      relatosUsados = mockRelatos
+      const detail = await fetchPatientDetailsBundle(gestanteId);
+      relatosUsados = detail.reports
         .filter(r => r.data >= range.start && r.data <= range.end)
         .map(r => ({
           data: r.data,
-          sintomas: r.sintomas,
-          humor: r.humor,
-          descricao: r.descricao,
+          sintomas: r.symptoms,
+          humor: r.mood,
+          descricao: r.description,
         }));
     } catch {
       // ignora — resultado com 0 relatos é válido

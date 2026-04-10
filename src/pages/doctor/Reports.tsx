@@ -6,9 +6,9 @@ import { LineChart } from '../../components/charts/LineChart';
 import { HorizontalBarChart } from '../../components/charts/HorizontalBarChart';
 import { KPISkeleton, ChartSkeleton, Skeleton } from '../../components/ui/Skeleton';
 import { type ReportData, type ReportPeriod } from '../../types/alerts';
-import { fetchReportData } from '../../mocks/alertsData';
+import { fetchReportData } from '../../services/doctorApi';
 import { exportToCsv } from '../../lib/exportCsv';
-import { relativeDate, formatDate } from '../../lib/utils';
+import { relativeDate } from '../../lib/utils';
 
 // ─── KPI Card ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, iconBg, icon }: {

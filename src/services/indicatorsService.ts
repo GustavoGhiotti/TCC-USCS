@@ -1,20 +1,10 @@
-/**
- * indicatorsService.ts — Indicadores agregados da unidade
- *
- * Calcula métricas quantitativas a partir dos dados mock (relatos + gestantes).
- * Funções puras facilitam testes unitários (Vitest).
- *
- * TODO backend: GET /indicadores?periodo=30  → retorna IndicadoresData
- */
+import { fetchPatients, fetchReportData } from './doctorApi';
 
-import { getAllGestantes, getRelatos } from './apiMock';
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
 export type PeriodoDias = 7 | 30 | 90;
 
 export interface TopGestante {
   id: string;
-  patientId: string; // mapeado para IDs do doctorData (p1, p2…)
+  patientId: string;
   nome: string;
   semanasGestacao?: number;
   totalAlertas: number;
@@ -32,149 +22,41 @@ export interface IndicadoresData {
   topGestantes: TopGestante[];
 }
 
-// ─── Mapeamento ID gestante → ID patient (doctorData) ─────────────────────────
-const GESTANTE_TO_PATIENT: Record<string, string> = {
-  '1': 'p1',
-  '2': 'p2',
-  '3': 'p3',
-  '4': 'p4',
-};
-
-// ─── Sintomas que indicam necessidade de atenção (sem diagnóstico) ─────────────
-const SINTOMAS_ATENCAO = new Set([
-  'pressão alta',
-  'contrações',
-  'edema severo',
-  'tontura',
-  'sangramento',
-  'cefaleia intensa',
-  'visão turva',
-  'convulsão',
-]);
-
-// ─── Funções puras (testáveis) ────────────────────────────────────────────────
-export function isRelatoDeAtencao(relato: { sintomas?: string[]; ocorrencias?: string }): boolean {
-  const temSintoma = (relato.sintomas ?? []).some(s =>
-    SINTOMAS_ATENCAO.has(s.toLowerCase()),
-  );
-  const temOcorrencia =
-    relato.ocorrencias != null &&
-    relato.ocorrencias.length > 5 &&
-    !relato.ocorrencias.toLowerCase().includes('nenhuma');
-  return temSintoma || temOcorrencia;
+function diasParaPeriodo(periodoEmDias: PeriodoDias): '7d' | '30d' | '90d' {
+  if (periodoEmDias === 7) return '7d';
+  if (periodoEmDias === 90) return '90d';
+  return '30d';
 }
 
-export function calcMediaRelatosPorSemana(
-  totalRelatos: number,
-  periodoEmDias: number,
-): number {
-  const semanas = periodoEmDias / 7;
-  if (semanas <= 0) return 0;
-  return Math.round((totalRelatos / semanas) * 10) / 10;
-}
+export async function getIndicadoresUnidade(periodoEmDias: PeriodoDias): Promise<IndicadoresData> {
+  const [patients, report] = await Promise.all([
+    fetchPatients(),
+    fetchReportData(diasParaPeriodo(periodoEmDias)),
+  ]);
 
-export function dataLimitePeriodo(diasAtras: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - diasAtras);
-  return d.toISOString().split('T')[0];
-}
-
-export function agruparRelatosPorDia(
-  relatos: { data: string }[],
-  dataInicio: string,
-): { data: string; count: number }[] {
-  const counts: Record<string, number> = {};
-  for (const r of relatos) {
-    if (r.data >= dataInicio) {
-      counts[r.data] = (counts[r.data] ?? 0) + 1;
-    }
-  }
-  return Object.entries(counts)
-    .map(([data, count]) => ({ data, count }))
-    .sort((a, b) => a.data.localeCompare(b.data));
-}
-
-// ─── Função principal ─────────────────────────────────────────────────────────
-export async function getIndicadoresUnidade(
-  periodoEmDias: PeriodoDias,
-): Promise<IndicadoresData> {
-  // Simula latência de rede
-  await new Promise<void>(r => setTimeout(r, 400));
-
-  const dataInicio = dataLimitePeriodo(periodoEmDias);
-  const gestantes = await getAllGestantes();
-
-  // Carrega relatos de cada gestante em paralelo
-  const relatosPorGestante = await Promise.all(
-    gestantes.map(async g => {
-      const todos = await getRelatos(g.id);
-      const noPeriodo = todos.filter(r => r.data >= dataInicio);
-      return { gestante: g, relatos: noPeriodo };
-    }),
-  );
-
-  // ── Métricas globais ──────────────────────────────────────────────────────
-  const totalGestantes = gestantes.length;
-
-  const gestantesComAlerta = relatosPorGestante.filter(({ relatos }) =>
-    relatos.some(isRelatoDeAtencao),
-  ).length;
-
-  const percentualComAlerta =
-    totalGestantes > 0
-      ? Math.round((gestantesComAlerta / totalGestantes) * 100)
-      : 0;
-
-  const totalRelatos = relatosPorGestante.reduce(
-    (sum, { relatos }) => sum + relatos.length,
-    0,
-  );
-
-  const mediaRelatosPorSemana = calcMediaRelatosPorSemana(
-    totalRelatos,
-    periodoEmDias,
-  );
-
-  const alertasPendentes = relatosPorGestante.reduce(
-    (sum, { relatos }) => sum + relatos.filter(isRelatoDeAtencao).length,
-    0,
-  );
-
-  // ── Relatos por dia (para gráfico) ────────────────────────────────────────
-  const todosRelatos = relatosPorGestante.flatMap(({ relatos }) => relatos);
-  const relatosPorDia = agruparRelatosPorDia(todosRelatos, dataInicio);
-
-  // ── Top gestantes com mais eventos de atenção ─────────────────────────────
-  const topGestantes: TopGestante[] = relatosPorGestante
-    .map(({ gestante, relatos }) => {
-      const ultimoRegistro =
-        relatos.length > 0
-          ? relatos.reduce(
-              (latest, r) => (r.data > latest ? r.data : latest),
-              relatos[0].data,
-            )
-          : null;
-      return {
-        id: gestante.id,
-        patientId: GESTANTE_TO_PATIENT[gestante.id] ?? gestante.id,
-        nome: gestante.nomeCompleto,
-        semanasGestacao: gestante.semanasGestacao,
-        totalAlertas: relatos.filter(isRelatoDeAtencao).length,
-        totalRelatos: relatos.length,
-        ultimoRegistro,
-      };
-    })
-    .sort(
-      (a, b) => b.totalAlertas - a.totalAlertas || b.totalRelatos - a.totalRelatos,
-    );
+  const totalGestantes = patients.length;
+  const gestantesComAlerta = report.patientSummary.filter((p) => p.alertCount > 0).length;
+  const totalRelatos = report.kpi.totalReports;
+  const mediaRelatosPorSemana = Number((totalRelatos / (periodoEmDias / 7)).toFixed(1));
 
   return {
     totalGestantes,
     gestantesComAlerta,
-    percentualComAlerta,
+    percentualComAlerta: totalGestantes > 0 ? Math.round((gestantesComAlerta / totalGestantes) * 100) : 0,
     mediaRelatosPorSemana,
-    alertasPendentes,
-    relatosPorDia,
-    topGestantes,
+    alertasPendentes: report.kpi.totalAlerts,
+    relatosPorDia: report.reportsPerDay.map((item) => ({ data: item.date, count: item.value })),
+    topGestantes: report.patientSummary.map((item) => {
+      const patient = patients.find((p) => p.id === item.id);
+      return {
+        id: item.id,
+        patientId: item.id,
+        nome: item.name,
+        semanasGestacao: patient?.gestationalWeeks,
+        totalAlertas: item.alertCount,
+        totalRelatos: item.reportCount,
+        ultimoRegistro: item.lastRecord ?? null,
+      };
+    }),
   };
 }

@@ -1,92 +1,188 @@
-# Sistema de Monitoramento de Gestantes - Frontend
+# GestaCare
 
-Projeto TCC para um sistema inteligente de acompanhamento gestacional com analise de IA.
+Frontend React + backend FastAPI para acompanhamento de gestantes.
 
-## Como Iniciar
+O projeto agora está configurado para usar **SQLite local** no backend, sem depender de Postgres online.
 
-### Pre-requisitos
-- Node.js 16+ instalado
-- npm ou yarn
+## Stack
 
-### Instalacao
+- Frontend: React 18, TypeScript, Vite
+- Backend: FastAPI, SQLAlchemy
+- Banco local: SQLite
 
-1. Extraia a pasta do projeto
-2. Entre na pasta do projeto:
-   ```bash
-   cd monitoramento-gestantes
-   ```
-
-3. Instale as dependencias:
-   ```bash
-   npm install
-   ```
-
-4. Inicie o servidor de desenvolvimento:
-   ```bash
-   npm run dev
-   ```
-
-5. Abra no navegador: `http://localhost:5173`
-
-## Credenciais de Teste
-
-### Gestante
-- Email: `gestante@example.com`
-- Role: `gestante`
-
-### Medico
-- Email: `medico@example.com`
-- Role: `medico`
-
-## Estrutura do Projeto
+## Estrutura
 
 ```text
-src/
-  components/     # Componentes React reutilizaveis
-  pages/          # Paginas/telas principais
-  routes/         # Configuracao de rotas
-  services/       # Logica de integracao
-  types/          # Tipos TypeScript
-  main.tsx        # Entrada da aplicacao
+src/                    frontend
+backend/                API FastAPI + banco SQLite
+backend/gestacare.db    arquivo do banco local
+backend/schema.sql      script SQL manual para criar as tabelas
+backend/init_sqlite.py  inicialização automática do banco + seed
 ```
 
-## Stack Tecnologico
+## Pré-requisitos
 
-- React 18
-- TypeScript
-- React Router
-- Tailwind CSS
-- Vite
+- Node.js 18+
+- Python 3.11+ ou 3.12+
 
-## Proximos Passos
+## 1. Instalar o frontend
 
-- [ ] Implementar formulario de Novo Relato
-- [ ] Criar tela de Resumos da IA
-- [ ] Adicionar sistema de notificacoes
-- [ ] Integracao com backend real
-- [ ] Testes unitarios
+No diretório raiz do projeto:
 
-## Backend FastAPI (fase inicial real)
+```powershell
+npm install
+```
 
-Foi adicionada a pasta `backend/` com API para autenticacao, perfil gestante e LGPD.
+## 2. Instalar o backend
 
-Endpoints implementados:
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /auth/me`
-- `GET /gestantes/me`
-- `PUT /gestantes/me`
-- `GET /consentimentos/me`
-- `POST /consentimentos/me`
-- `POST /relatos`
-- `GET /relatos/me`
-- `GET /relatos/me/{id}`
+Entre na pasta `backend`:
 
-Para subir o backend:
-1. `cd backend`
-2. `pip install -r requirements.txt`
-3. `uvicorn app.main:app --reload --port 8000`
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-Credenciais seed:
-- `doctor@gestacare.com` / `123456`
-- `patient@gestacare.com` / `123456`
+## 3. Criar o banco SQLite local
+
+Você tem 2 formas.
+
+### Opção A: criação automática pelo projeto
+
+Ainda dentro de `backend/`:
+
+```powershell
+python init_sqlite.py
+```
+
+Isso:
+
+- cria o arquivo [`backend/gestacare.db`](/c:/Users/ghiot/OneDrive/Documentos/Programação/front_end_gestante/backend/gestacare.db)
+- cria as tabelas
+- insere dados iniciais de teste
+
+### Opção B: criação manual via SQL
+
+Se quiser criar as tabelas manualmente:
+
+```powershell
+python -m sqlite3 gestacare.db ".read schema.sql"
+```
+
+Se o comando acima não funcionar no seu Python, use um gerenciador visual como **DB Browser for SQLite** e execute o conteúdo de [`backend/schema.sql`](/c:/Users/ghiot/OneDrive/Documentos/Programação/front_end_gestante/backend/schema.sql).
+
+## 4. Rodar o backend
+
+Ainda em `backend/`:
+
+```powershell
+uvicorn app.main:app --reload --port 8000
+```
+
+O backend ficará em `http://localhost:8000`.
+
+Health check:
+
+```powershell
+curl http://localhost:8000/health
+```
+
+## 5. Rodar o frontend
+
+Na raiz do projeto:
+
+```powershell
+npm run dev
+```
+
+O frontend ficará em `http://localhost:5173`.
+
+## Configuração usada
+
+O frontend usa:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+O backend usa SQLite local por padrão:
+
+```text
+sqlite:///.../backend/gestacare.db
+```
+
+## Credenciais seed
+
+Criadas automaticamente pelo `python init_sqlite.py` ou no startup da API:
+
+- Médico: `doctor@gestacare.com` / `123456`
+- Gestante: `patient@gestacare.com` / `123456`
+
+## Tabelas principais
+
+O banco local contém:
+
+- `users`
+- `gestantes`
+- `consentimentos_lgpd`
+- `relatos_diarios`
+- `medicamentos`
+- `consultas`
+- `orientacoes`
+- `prontuarios`
+- `sinais_vitais`
+- `resumos_ia`
+- `alertas`
+- `alertas_notas`
+
+## Como abrir o banco e conferir os dados
+
+### Pelo terminal
+
+Dentro de `backend/`:
+
+```powershell
+python -m sqlite3 gestacare.db
+```
+
+Exemplos úteis:
+
+```sql
+.tables
+SELECT id, email, role FROM users;
+SELECT id, nome_completo, semanas_gestacao_atual FROM gestantes;
+SELECT id, data_relato, humor FROM relatos_diarios ORDER BY data_relato DESC;
+SELECT id, patient_name, tipo, severity, status FROM alertas;
+```
+
+Para sair:
+
+```sql
+.quit
+```
+
+### Pelo DB Browser for SQLite
+
+1. Baixe o DB Browser for SQLite.
+2. Abra o arquivo [`backend/gestacare.db`](/c:/Users/ghiot/OneDrive/Documentos/Programação/front_end_gestante/backend/gestacare.db).
+3. Vá em `Browse Data` para ver e editar registros.
+
+## Fluxos que agora usam o banco local
+
+- login/autenticação
+- dashboard da gestante
+- relatos da gestante
+- medicamentos da gestante
+- resumos IA da gestante
+- dashboard do médico
+- alertas do médico
+- relatórios do médico
+- detalhes da paciente
+- cadastro de medicamentos, prontuário e sinais vitais no fluxo médico
+
+## Observações
+
+- O arquivo do banco fica local na máquina, em [`backend/gestacare.db`](/c:/Users/ghiot/OneDrive/Documentos/Programação/front_end_gestante/backend/gestacare.db).
+- Se quiser resetar o banco, apague `backend/gestacare.db` e execute `python init_sqlite.py` novamente.
+- O backend também recria as tabelas no startup, mas `init_sqlite.py` é a forma mais direta para preparar o ambiente.

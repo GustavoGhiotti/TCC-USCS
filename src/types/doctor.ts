@@ -56,6 +56,14 @@ export interface DailyReport {
   description: string;
   mood: 'feliz' | 'normal' | 'triste' | 'ansioso';
   symptoms: string[];
+  vitalSigns?: {
+    bloodPressureSystolic?: number;
+    bloodPressureDiastolic?: number;
+    heartRate?: number;
+    oxygenSaturation?: number;
+    weight?: number;
+    temperature?: number;
+  };
 }
 
 // ─── Medicamentos ──────────────────────────────────────────────────────────────

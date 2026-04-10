@@ -34,6 +34,7 @@ from app.schemas.care import (
     ProntuarioOut,
     ResumoGerarIn,
     ResumoOut,
+    ResumoReviewIn,
     SinalVitalIn,
     SinalVitalOut,
 )
@@ -66,6 +67,29 @@ def _semaforo_from_alerts(alerts: list[str]) -> str:
     if any(a in {"tontura", "contracoes", "cefaleia", "dor de cabeca"} for a in alerts):
         return "amarelo"
     return "verde"
+
+
+def _map_resumo_out(resumo: ResumoIA, *, for_patient: bool) -> ResumoOut:
+    resumo_texto = resumo.resumo_aprovado_texto if for_patient and resumo.resumo_aprovado_texto else resumo.resumo_texto
+    recomendacoes = (
+        resumo.recomendacoes_aprovadas
+        if for_patient and resumo.recomendacoes_aprovadas
+        else (resumo.recomendacoes or "")
+    )
+    return ResumoOut(
+        id=resumo.id,
+        gestanteId=resumo.gestante_id,
+        relatoId=resumo.id,
+        data=resumo.gerado_em.date(),
+        tipo="semanal",
+        semaforo=(resumo.nivel_alerta if resumo.nivel_alerta in {"verde", "amarelo", "vermelho"} else "verde"),
+        resumo=resumo_texto,
+        sintomasIdentificados=json.loads(resumo.sintomas_identificados_json or "[]"),
+        avisos=json.loads(resumo.avisos_json or "[]"),
+        recomendacoes=recomendacoes,
+        status=(resumo.status if resumo.status in {"pending", "approved"} else "pending"),
+        aprovadoEm=resumo.revisado_em,
+    )
 
 
 @router.get("/medicamentos/me", response_model=list[MedicamentoOut])
@@ -250,22 +274,14 @@ def create_prontuario(payload: ProntuarioIn, current_user: User = Depends(get_cu
 def resumos_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     _require_role(current_user, "gestante")
     gestante = _get_gestante_by_user(db, current_user.id)
-    rows = list(db.scalars(select(ResumoIA).where(ResumoIA.gestante_id == gestante.id).order_by(desc(ResumoIA.gerado_em))))
-    return [
-        ResumoOut(
-            id=r.id,
-            gestanteId=r.gestante_id,
-            relatoId=r.id,
-            data=r.gerado_em.date(),
-            tipo="semanal",
-            semaforo=(r.nivel_alerta if r.nivel_alerta in {"verde", "amarelo", "vermelho"} else "verde"),
-            resumo=r.resumo_texto,
-            sintomasIdentificados=json.loads(r.sintomas_identificados_json or "[]"),
-            avisos=json.loads(r.avisos_json or "[]"),
-            recomendacoes=r.recomendacoes or "Acompanhar com equipe medica.",
+    rows = list(
+        db.scalars(
+            select(ResumoIA)
+            .where(and_(ResumoIA.gestante_id == gestante.id, ResumoIA.status == "approved"))
+            .order_by(desc(ResumoIA.gerado_em))
         )
-        for r in rows
-    ]
+    )
+    return [_map_resumo_out(r, for_patient=True) for r in rows]
 
 
 @router.post("/resumos-ia/gerar", response_model=ResumoOut)
@@ -311,24 +327,52 @@ def gerar_resumo(payload: ResumoGerarIn, current_user: User = Depends(get_curren
         sintomas_identificados_json=json.dumps(top_list, ensure_ascii=False),
         avisos_json=json.dumps(avisos, ensure_ascii=False),
         recomendacoes="Resumo informativo; nao substitui avaliacao medica.",
+        status="pending",
         gerado_em=datetime.now(UTC),
     )
     db.add(resumo)
     db.commit()
     db.refresh(resumo)
 
-    return ResumoOut(
-        id=resumo.id,
-        gestanteId=resumo.gestante_id,
-        relatoId=resumo.id,
-        data=resumo.gerado_em.date(),
-        tipo="semanal",
-        semaforo=(resumo.nivel_alerta if resumo.nivel_alerta in {"verde", "amarelo", "vermelho"} else "verde"),
-        resumo=resumo.resumo_texto,
-        sintomasIdentificados=json.loads(resumo.sintomas_identificados_json or "[]"),
-        avisos=json.loads(resumo.avisos_json or "[]"),
-        recomendacoes=resumo.recomendacoes or "",
+    return _map_resumo_out(resumo, for_patient=False)
+
+
+@router.get("/medicos/pacientes/{gestante_id}/resumos-ia", response_model=list[ResumoOut])
+def medico_resumos_paciente(gestante_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_role(current_user, "medico")
+    gestante = _get_gestante_by_id(db, gestante_id)
+    rows = list(
+        db.scalars(
+            select(ResumoIA)
+            .where(ResumoIA.gestante_id == gestante.id)
+            .order_by(desc(ResumoIA.gerado_em))
+        )
     )
+    return [_map_resumo_out(r, for_patient=False) for r in rows]
+
+
+@router.patch("/medicos/resumos-ia/{resumo_id}/aprovar", response_model=ResumoOut)
+def aprovar_resumo_ia(
+    resumo_id: str, payload: ResumoReviewIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    _require_role(current_user, "medico")
+    resumo = db.scalar(select(ResumoIA).where(ResumoIA.id == resumo_id))
+    if not resumo:
+        raise HTTPException(status_code=404, detail="Resumo nao encontrado")
+
+    resumo.status = "approved"
+    resumo.resumo_aprovado_texto = (payload.resumo.strip() if payload.resumo and payload.resumo.strip() else resumo.resumo_texto)
+    resumo.recomendacoes_aprovadas = (
+        payload.recomendacoes.strip()
+        if payload.recomendacoes and payload.recomendacoes.strip()
+        else (resumo.recomendacoes or "")
+    )
+    resumo.revisado_por_medico_id = current_user.id
+    resumo.revisado_em = datetime.now(UTC)
+    db.add(resumo)
+    db.commit()
+    db.refresh(resumo)
+    return _map_resumo_out(resumo, for_patient=False)
 
 
 @router.get("/sinais-vitais/me", response_model=list[SinalVitalOut])
@@ -356,6 +400,57 @@ def sinais_vitais_me(current_user: User = Depends(get_current_user), db: Session
 def create_sinal_vital(payload: SinalVitalIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     _require_role(current_user, "gestante")
     gestante = _get_gestante_by_user(db, current_user.id)
+
+    r = SinalVital(
+        gestante_id=gestante.id,
+        data_registro=payload.data_registro,
+        pressao_sistolica=payload.pressao_sistolica,
+        pressao_diastolica=payload.pressao_diastolica,
+        frequencia_cardiaca=payload.frequencia_cardiaca,
+        saturacao_oxigenio=payload.saturacao_oxigenio,
+        peso_kg=payload.peso_kg,
+        temperatura_c=payload.temperatura_c,
+    )
+    db.add(r)
+    db.flush()
+
+    if (payload.pressao_sistolica or 0) >= 140 or (payload.pressao_diastolica or 0) >= 90:
+        db.add(
+            Alerta(
+                gestante_id=gestante.id,
+                patient_name=gestante.nome_completo,
+                patient_ig=(f"{gestante.semanas_gestacao_atual or 0}s"),
+                tipo="PA fora do padrao",
+                severity="high",
+                status="pending",
+                metric_label="Pressao arterial",
+                metric_value=f"PA: {payload.pressao_sistolica or '-'} / {payload.pressao_diastolica or '-'} mmHg",
+                created_at_event=datetime.now(UTC),
+            )
+        )
+
+    db.commit()
+    db.refresh(r)
+
+    return SinalVitalOut(
+        id=r.id,
+        gestanteId=r.gestante_id,
+        data_registro=r.data_registro,
+        pressao_sistolica=r.pressao_sistolica,
+        pressao_diastolica=r.pressao_diastolica,
+        frequencia_cardiaca=r.frequencia_cardiaca,
+        saturacao_oxigenio=r.saturacao_oxigenio,
+        peso_kg=r.peso_kg,
+        temperatura_c=r.temperatura_c,
+    )
+
+
+@router.post("/medicos/pacientes/{gestante_id}/sinais-vitais", response_model=SinalVitalOut)
+def create_sinal_vital_medico(
+    gestante_id: str, payload: SinalVitalIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    _require_role(current_user, "medico")
+    gestante = _get_gestante_by_id(db, gestante_id)
 
     r = SinalVital(
         gestante_id=gestante.id,
@@ -526,7 +621,7 @@ def add_alert_note(alert_id: str, payload: AlertNoteIn, current_user: User = Dep
     note = AlertaNota(
         alerta_id=alert.id,
         text=payload.text,
-        author_name=(payload.authorName or current_user.email),
+        author_name=current_user.email,
         created_at_note=datetime.now(UTC),
     )
     db.add(note)
@@ -688,6 +783,28 @@ def medico_paciente_detalhe(gestante_id: str, current_user: User = Depends(get_c
             "description": r.descricao or "",
             "mood": r.humor,
             "symptoms": json.loads(r.sintomas_json or "[]"),
+            "vitalSigns": (
+                {
+                    "bloodPressureSystolic": r.pressao_sistolica,
+                    "bloodPressureDiastolic": r.pressao_diastolica,
+                    "heartRate": r.frequencia_cardiaca,
+                    "oxygenSaturation": r.saturacao_oxigenio,
+                    "weight": r.peso_kg,
+                    "temperature": r.temperatura_c,
+                }
+                if any(
+                    value is not None
+                    for value in (
+                        r.pressao_sistolica,
+                        r.pressao_diastolica,
+                        r.frequencia_cardiaca,
+                        r.saturacao_oxigenio,
+                        r.peso_kg,
+                        r.temperatura_c,
+                    )
+                )
+                else None
+            ),
         }
         for r in relatos
     ]

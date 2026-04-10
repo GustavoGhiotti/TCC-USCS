@@ -4,7 +4,14 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import AuthLoginRequest, AuthLoginResponse, AuthRegisterRequest, UserMeResponse
+from app.schemas.auth import (
+    AuthLoginRequest,
+    AuthLoginResponse,
+    AuthRegisterRequest,
+    DoctorCreatePatientRequest,
+    DoctorCreatePatientResponse,
+    UserMeResponse,
+)
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -23,3 +30,12 @@ def login(payload: AuthLoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserMeResponse)
 def me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return AuthService(db).build_user_me(current_user.id)
+
+
+@router.post("/doctor/patients", response_model=DoctorCreatePatientResponse, status_code=status.HTTP_201_CREATED)
+def create_patient_by_doctor(
+    payload: DoctorCreatePatientRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return AuthService(db).create_patient_by_doctor(current_user, payload)

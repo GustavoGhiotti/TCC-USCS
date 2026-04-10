@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRelatos, createRelato } from '../services/apiMock';
 import { RelatoDiario } from '../types/domain';
 
-interface RelatoExtended extends RelatoDiario {
+interface RelatoExtended extends Omit<RelatoDiario, 'sinaisVitais'> {
   ocorrencias?: string;
   sinaisVitais?: {
     pressao?: string;

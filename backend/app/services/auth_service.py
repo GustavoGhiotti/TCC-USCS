@@ -5,7 +5,15 @@ from app.core.security import create_access_token, get_password_hash, verify_pas
 from app.repositories.consentimento_repository import ConsentimentoRepository
 from app.repositories.gestante_repository import GestanteRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.auth import AuthLoginRequest, AuthLoginResponse, AuthRegisterRequest, UserMeResponse
+from app.models.user import User
+from app.schemas.auth import (
+    AuthLoginRequest,
+    AuthLoginResponse,
+    AuthRegisterRequest,
+    DoctorCreatePatientRequest,
+    DoctorCreatePatientResponse,
+    UserMeResponse,
+)
 
 
 class AuthService:
@@ -31,6 +39,39 @@ class AuthService:
 
         self.db.commit()
         return self.build_user_me(user.id)
+
+    def create_patient_by_doctor(self, current_user: User, payload: DoctorCreatePatientRequest) -> DoctorCreatePatientResponse:
+        if current_user.role != "medico":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Apenas médicos podem cadastrar pacientes.")
+
+        existing = self.user_repo.get_by_email(payload.email)
+        if existing:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="E-mail já cadastrado.")
+
+        user = self.user_repo.create(
+            email=payload.email,
+            senha_hash=get_password_hash(payload.senha),
+            role="gestante",
+        )
+
+        gestante = self.gestante_repo.create(
+            user_id=user.id,
+            nome_completo=payload.nome_completo,
+            semanas_gestacao_atual=payload.semanas_gestacao_atual,
+        )
+
+        if payload.telefone:
+            self.gestante_repo.update(gestante, telefone=payload.telefone)
+
+        self.db.commit()
+        return DoctorCreatePatientResponse(
+            id=user.id,
+            email=user.email,
+            role="gestante",
+            nomeCompleto=gestante.nome_completo,
+            telefone=gestante.telefone,
+            semanasGestacao=gestante.semanas_gestacao_atual,
+        )
 
     def login(self, payload: AuthLoginRequest) -> AuthLoginResponse:
         user = self.user_repo.get_by_email(payload.email)
