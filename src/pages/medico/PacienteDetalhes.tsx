@@ -231,20 +231,6 @@ export function PacienteDetalhes() {
                       </span>
                     </div>
                     <p className="mb-3 text-slate-700">{relato.descricao}</p>
-                    {/* @ts-ignore - sinaisVitais added to mock but not in domain type yet */}
-                    {relato.sinaisVitais && (
-                      <div className="p-2 mb-3 text-sm rounded bg-slate-50">
-                        <p className="font-semibold text-slate-700">Sinais Vitais:</p>
-                        <div className="grid grid-cols-3 gap-2 mt-1">
-                          {/* @ts-ignore */}
-                          <p>BPM: {relato.sinaisVitais.batimentos}</p>
-                          {/* @ts-ignore */}
-                          <p>O2: {relato.sinaisVitais.oxigenacao}%</p>
-                          {/* @ts-ignore */}
-                          <p>{relato.sinaisVitais.outros}</p>
-                        </div>
-                      </div>
-                    )}
                     {relato.sintomas.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {relato.sintomas.map((sintoma) => (

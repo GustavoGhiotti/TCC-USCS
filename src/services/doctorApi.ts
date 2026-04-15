@@ -7,8 +7,8 @@ import type {
   MedicalRecord,
   Medication,
   Patient,
+  PrenatalProfile,
   TimelineEvent,
-  VitalSign,
 } from '../types/doctor';
 
 type PatientApi = {
@@ -42,17 +42,6 @@ type PatientDetailApi = {
     address?: string;
     bloodType?: string;
     firstAppointmentDate?: string | null;
-    lastVitals?: {
-      id: string;
-      patientId: string;
-      date: string;
-      bloodPressureSystolic: number;
-      bloodPressureDiastolic: number;
-      heartRate: number;
-      oxygenSaturation: number;
-      weight?: number;
-    } | null;
-    vitalsHistory: Patient['vitalsHistory'];
   };
   reports: Array<{
     id: string;
@@ -61,7 +50,10 @@ type PatientDetailApi = {
     description: string;
     mood: DailyReport['mood'];
     symptoms: string[];
-    vitalSigns?: DailyReport['vitalSigns'];
+    clinicalPriority?: DailyReport['clinicalPriority'];
+    highlightForConsultation?: boolean;
+    priorityReason?: string;
+    doctorNote?: string;
   }>;
   medications: Array<{
     id: string;
@@ -86,6 +78,7 @@ type PatientDetailApi = {
     doctorId: string;
     doctorName: string;
   }>;
+  prenatalProfile?: PrenatalProfile;
   summary: AssistantSummary;
   timeline: TimelineEvent[];
 };
@@ -112,18 +105,6 @@ type ProntuarioOut = {
   medicoId?: string | null;
 };
 
-type SinalVitalOut = {
-  id: string;
-  gestanteId: string;
-  data_registro: string;
-  pressao_sistolica?: number | null;
-  pressao_diastolica?: number | null;
-  frequencia_cardiaca?: number | null;
-  saturacao_oxigenio?: number | null;
-  peso_kg?: number | null;
-  temperatura_c?: number | null;
-};
-
 type ResumoOut = {
   id: string;
   gestanteId: string;
@@ -144,19 +125,9 @@ export interface PatientDetailsBundle {
   reports: DailyReport[];
   medications: Medication[];
   medicalRecords: MedicalRecord[];
+  prenatalProfile: PrenatalProfile;
   summary: AssistantSummary;
   timeline: TimelineEvent[];
-}
-
-export interface VitalSignInput {
-  patientId: string;
-  date: string;
-  bloodPressureSystolic: number;
-  bloodPressureDiastolic: number;
-  heartRate: number;
-  oxygenSaturation: number;
-  weight?: number;
-  temperature?: number;
 }
 
 export interface AddMedicalRecordInput {
@@ -167,6 +138,13 @@ export interface AddMedicalRecordInput {
   nextAppointment?: string;
   doctorId?: string;
   doctorName?: string;
+}
+
+export interface UpdateMedicalRecordInput {
+  date?: string;
+  summary?: string;
+  actions?: string[];
+  doctorId?: string;
 }
 
 export interface AddMedicationInput {
@@ -180,6 +158,50 @@ export interface AddMedicationInput {
   notes?: string;
   isActive: boolean;
   prescribedBy?: string;
+}
+
+export interface UpdateMedicationInput {
+  name?: string;
+  dose?: string;
+  frequency?: string;
+  duration?: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+  isActive?: boolean;
+}
+
+export interface UpdatePrenatalProfileInput extends PrenatalProfile {}
+
+export interface UpdateDailyReportInput {
+  clinicalPriority?: DailyReport['clinicalPriority'];
+  highlightForConsultation?: boolean;
+  priorityReason?: string;
+  doctorNote?: string;
+}
+
+const defaultPrenatalProfile: PrenatalProfile = {
+  riskClassification: 'habitual',
+  chronicConditions: [],
+  previousPregnancyComplications: [],
+  familyHistory: [],
+  allergies: '',
+  continuousMedications: '',
+  surgeries: '',
+  obstetricHistory: '',
+  mentalHealthNotes: '',
+  socialContext: '',
+  additionalNotes: '',
+};
+
+function normalizeDailyReport(report: PatientDetailApi['reports'][number]): DailyReport {
+  return {
+    ...report,
+    clinicalPriority: report.clinicalPriority ?? 'normal',
+    highlightForConsultation: report.highlightForConsultation ?? false,
+    priorityReason: report.priorityReason ?? undefined,
+    doctorNote: report.doctorNote ?? undefined,
+  };
 }
 
 export interface CreatePatientAccountInput {
@@ -209,14 +231,6 @@ function normalizePatient(patient: PatientApi): Patient {
     ...patient,
     dueDate: patient.dueDate ?? undefined,
     lastReportDate: patient.lastReportDate ?? undefined,
-    vitalsHistory: {
-      dates: [],
-      systolic: [],
-      diastolic: [],
-      heartRate: [],
-      oxygenSaturation: [],
-      weight: [],
-    },
   };
 }
 
@@ -272,20 +286,6 @@ function normalizeMedicalRecord(record: PatientDetailApi['medicalRecords'][numbe
     nextAppointment: undefined,
     doctorId: record.medicoId ?? '',
     doctorName: 'Dr. Responsavel',
-  };
-}
-
-function normalizeVital(vital: SinalVitalOut): VitalSign {
-  return {
-    id: vital.id,
-    patientId: vital.gestanteId,
-    date: vital.data_registro,
-    bloodPressureSystolic: vital.pressao_sistolica ?? 0,
-    bloodPressureDiastolic: vital.pressao_diastolica ?? 0,
-    heartRate: vital.frequencia_cardiaca ?? 0,
-    oxygenSaturation: vital.saturacao_oxigenio ?? 0,
-    weight: vital.peso_kg ?? undefined,
-    temperature: vital.temperatura_c ?? undefined,
   };
 }
 
@@ -362,25 +362,24 @@ export async function fetchPatientDetailsBundle(id: string): Promise<PatientDeta
       dueDate: data.patient.dueDate ?? undefined,
       lastReportDate: data.patient.lastReportDate ?? undefined,
       firstAppointmentDate: data.patient.firstAppointmentDate ?? undefined,
-      lastVitals: data.patient.lastVitals
-        ? {
-            id: data.patient.lastVitals.id,
-            patientId: data.patient.lastVitals.patientId,
-            date: data.patient.lastVitals.date,
-            bloodPressureSystolic: data.patient.lastVitals.bloodPressureSystolic,
-            bloodPressureDiastolic: data.patient.lastVitals.bloodPressureDiastolic,
-            heartRate: data.patient.lastVitals.heartRate,
-            oxygenSaturation: data.patient.lastVitals.oxygenSaturation,
-            weight: data.patient.lastVitals.weight,
-          }
-        : undefined,
     },
-    reports: data.reports,
+    reports: data.reports.map(normalizeDailyReport),
     medications: data.medications.map(normalizeMedication),
     medicalRecords: data.medicalRecords.map(normalizeMedicalRecord),
+    prenatalProfile: data.prenatalProfile ?? defaultPrenatalProfile,
     summary: data.summary,
     timeline: data.timeline,
   };
+}
+
+export async function updateDailyReport(reportId: string, payload: UpdateDailyReportInput): Promise<DailyReport> {
+  const { data } = await api.patch<PatientDetailApi['reports'][number]>(`/medicos/relatos/${reportId}`, {
+    clinicalPriority: payload.clinicalPriority,
+    highlightForConsultation: payload.highlightForConsultation,
+    priorityReason: payload.priorityReason,
+    doctorNote: payload.doctorNote,
+  });
+  return normalizeDailyReport(data);
 }
 
 export async function addMedication(payload: AddMedicationInput): Promise<Medication> {
@@ -397,6 +396,28 @@ export async function addMedication(payload: AddMedicationInput): Promise<Medica
   return normalizeMedication(data);
 }
 
+export async function updateMedication(medicationId: string, payload: UpdateMedicationInput): Promise<Medication> {
+  const { data } = await api.patch<MedicamentoOut>(`/medicamentos/${medicationId}`, {
+    nome: payload.name,
+    dosagem: payload.dose,
+    frequencia: payload.frequency,
+    dataInicio: payload.startDate,
+    dataFim: payload.endDate,
+    ativo: payload.isActive,
+    observacoes: payload.notes,
+  });
+
+  const normalized = normalizeMedication(data);
+  return {
+    ...normalized,
+    duration: payload.duration ?? normalized.duration,
+  };
+}
+
+export async function deleteMedication(medicationId: string): Promise<void> {
+  await api.delete(`/medicamentos/${medicationId}`);
+}
+
 export async function addMedicalRecord(payload: AddMedicalRecordInput): Promise<MedicalRecord> {
   const { data } = await api.post<ProntuarioOut>('/prontuarios', {
     gestanteId: payload.patientId,
@@ -409,17 +430,27 @@ export async function addMedicalRecord(payload: AddMedicalRecordInput): Promise<
   return normalizeMedicalRecord(data);
 }
 
-export async function addVitalSign(payload: VitalSignInput): Promise<VitalSign> {
-  const { data } = await api.post<SinalVitalOut>(`/medicos/pacientes/${payload.patientId}/sinais-vitais`, {
-    data_registro: payload.date,
-    pressao_sistolica: payload.bloodPressureSystolic,
-    pressao_diastolica: payload.bloodPressureDiastolic,
-    frequencia_cardiaca: payload.heartRate,
-    saturacao_oxigenio: payload.oxygenSaturation,
-    peso_kg: payload.weight,
-    temperatura_c: payload.temperature,
+export async function updateMedicalRecord(recordId: string, payload: UpdateMedicalRecordInput): Promise<MedicalRecord> {
+  const { data } = await api.patch<ProntuarioOut>(`/prontuarios/${recordId}`, {
+    data: payload.date ? payload.date.slice(0, 10) : undefined,
+    descricao: payload.summary,
+    medicamentosPrescritos: [],
+    acoesRealizadas: payload.actions?.join('\n'),
+    medicoId: payload.doctorId,
   });
-  return normalizeVital(data);
+  return normalizeMedicalRecord(data);
+}
+
+export async function deleteMedicalRecord(recordId: string): Promise<void> {
+  await api.delete(`/prontuarios/${recordId}`);
+}
+
+export async function updatePrenatalProfile(
+  patientId: string,
+  payload: UpdatePrenatalProfileInput,
+): Promise<PrenatalProfile> {
+  const { data } = await api.patch<PrenatalProfile>(`/medicos/pacientes/${patientId}/cadastro-prenatal`, payload);
+  return { ...defaultPrenatalProfile, ...data };
 }
 
 export async function fetchPatientSummaries(patientId: string): Promise<ReviewedSummary[]> {

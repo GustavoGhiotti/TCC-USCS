@@ -7,7 +7,6 @@ import type {
   AssistantSummary,
   TimelineEvent,
   KPIData,
-  VitalSign,
 } from '../types/doctor';
 
 function delay(ms: number) {
@@ -39,15 +38,6 @@ function asPatient(raw: any): Patient {
     address: raw.address,
     bloodType: raw.bloodType,
     firstAppointmentDate: raw.firstAppointmentDate,
-    lastVitals: raw.lastVitals as VitalSign | undefined,
-    vitalsHistory: raw.vitalsHistory ?? {
-      dates: [],
-      systolic: [],
-      diastolic: [],
-      heartRate: [],
-      oxygenSaturation: [],
-      weight: [],
-    },
   };
 }
 
@@ -152,30 +142,6 @@ export async function addMedicalRecord(rec: Omit<MedicalRecord, 'id'>): Promise<
     nextAppointment: rec.nextAppointment,
     doctorId: rec.doctorId,
     doctorName: rec.doctorName,
-  };
-}
-
-export async function addVitalSign(vs: Omit<VitalSign, 'id'>): Promise<VitalSign> {
-  const { data } = await api.post('/sinais-vitais', {
-    data_registro: vs.date,
-    pressao_sistolica: vs.bloodPressureSystolic,
-    pressao_diastolica: vs.bloodPressureDiastolic,
-    frequencia_cardiaca: vs.heartRate,
-    saturacao_oxigenio: vs.oxygenSaturation,
-    peso_kg: vs.weight ?? null,
-    temperatura_c: vs.temperature ?? null,
-  });
-
-  return {
-    id: data.id,
-    patientId: data.gestanteId,
-    date: data.data_registro,
-    bloodPressureSystolic: data.pressao_sistolica,
-    bloodPressureDiastolic: data.pressao_diastolica,
-    heartRate: data.frequencia_cardiaca,
-    oxygenSaturation: data.saturacao_oxigenio,
-    weight: data.peso_kg,
-    temperature: data.temperatura_c,
   };
 }
 

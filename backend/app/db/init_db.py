@@ -17,7 +17,6 @@ from app.models.orientacao import Orientacao
 from app.models.prontuario import Prontuario
 from app.models.relato import RelatoDiario
 from app.models.resumo_ia import ResumoIA
-from app.models.sinal_vital import SinalVital
 from app.models.user import User
 
 
@@ -32,6 +31,10 @@ def init_db() -> None:
             "saturacao_oxigenio": "INTEGER",
             "peso_kg": "REAL",
             "temperatura_c": "REAL",
+            "prioridade_clinica": "TEXT NOT NULL DEFAULT 'normal'",
+            "destaque_consulta": "BOOLEAN NOT NULL DEFAULT 0",
+            "motivo_prioridade": "TEXT",
+            "nota_medica": "TEXT",
         }
         for name, sql_type in expected.items():
             if name not in columns:
@@ -53,7 +56,6 @@ def seed_db(db: Session) -> None:
     db.execute(text("DELETE FROM alertas_notas"))
     db.execute(text("DELETE FROM alertas"))
     db.execute(text("DELETE FROM resumos_ia"))
-    db.execute(text("DELETE FROM sinais_vitais"))
     db.execute(text("DELETE FROM prontuarios"))
     db.execute(text("DELETE FROM orientacoes"))
     db.execute(text("DELETE FROM consultas"))
@@ -167,6 +169,10 @@ def seed_db(db: Session) -> None:
             "o2": 98,
             "peso": 74.9,
             "temp": 36.6,
+            "prioridade": "alta",
+            "destaque": True,
+            "motivo": "Cefaleia associada a edema no contexto de hipertensao gestacional.",
+            "nota_medica": "Revisar na consulta a evolucao do edema, padrao da cefaleia e medidas pressoricas domiciliares.",
         },
         {
             "data": date(2026, 4, 7),
@@ -189,6 +195,10 @@ def seed_db(db: Session) -> None:
             "o2": 97,
             "peso": 74.6,
             "temp": 36.7,
+            "prioridade": "critica",
+            "destaque": True,
+            "motivo": "Pico pressorico com cefaleia e tontura, exigindo revisao prioritaria no atendimento.",
+            "nota_medica": "Relato chave para correlacao com conduta anti-hipertensiva e risco de pre-eclampsia.",
         },
         {
             "data": date(2026, 4, 3),
@@ -217,21 +227,12 @@ def seed_db(db: Session) -> None:
                 saturacao_oxigenio=item["o2"],
                 peso_kg=item["peso"],
                 temperatura_c=item["temp"],
+                prioridade_clinica=item.get("prioridade", "normal"),
+                destaque_consulta=item.get("destaque", False),
+                motivo_prioridade=item.get("motivo"),
+                nota_medica=item.get("nota_medica"),
             )
         )
-        db.add(
-            SinalVital(
-                gestante_id=caso_completo.id,
-                data_registro=datetime.combine(item["data"], datetime.min.time()).replace(tzinfo=UTC),
-                pressao_sistolica=item["pa"][0],
-                pressao_diastolica=item["pa"][1],
-                frequencia_cardiaca=item["fc"],
-                saturacao_oxigenio=item["o2"],
-                peso_kg=item["peso"],
-                temperatura_c=item["temp"],
-            )
-        )
-
     db.add_all(
         [
             Medicamento(
@@ -315,7 +316,7 @@ def seed_db(db: Session) -> None:
                 data=datetime(2026, 4, 6, 15, 30, tzinfo=UTC),
                 descricao="Atendimento de revisão por pico pressórico em domicílio. Paciente chegou sem sinais de urgência, com cefaleia leve já em melhora e edema discreto em membros inferiores.",
                 medicamentos_prescritos_json=json.dumps(["Metildopa 250 mg 8/8h"], ensure_ascii=False),
-                acoes_realizadas="Solicitado controle pressórico domiciliar.\nOrientada sobre sinais de alarme.\nRegistrados sinais vitais da consulta: PA 146/94 mmHg · FC 90 bpm · O2 98% · Peso 74.8 kg · Temperatura 36.5 °C.",
+                acoes_realizadas="Solicitado controle pressórico domiciliar.\nOrientada sobre sinais de alarme.\nAcompanhamento clínico mantido com retorno programado.",
             ),
             Prontuario(
                 gestante_id=caso_completo.id,

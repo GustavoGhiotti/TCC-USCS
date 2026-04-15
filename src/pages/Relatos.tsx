@@ -6,14 +6,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { getRelatos, createRelato } from '../services/apiMock';
 import { RelatoDiario } from '../types/domain';
 
-interface RelatoExtended extends Omit<RelatoDiario, 'sinaisVitais'> {
+interface RelatoExtended extends RelatoDiario {
   ocorrencias?: string;
-  sinaisVitais?: {
-    pressao?: string;
-    batimentos?: string | number;
-    oxigenacao?: number;
-    outros?: string;
-  };
 }
 
 export function Relatos() {
@@ -27,8 +21,6 @@ export function Relatos() {
     descricao: '',
     humor: 'normal',
     sintomas: [] as string[],
-    pressaoArterial: '',
-    batimentosCardiacos: '',
     ocorrencias: '',
   });
 
@@ -65,10 +57,6 @@ export function Relatos() {
         descricao: formData.descricao,
         humor: formData.humor as 'feliz' | 'normal' | 'triste' | 'ansioso',
         sintomas: formData.sintomas,
-        sinaisVitais: {
-          pressao: formData.pressaoArterial,
-          batimentos: formData.batimentosCardiacos
-        },
         ocorrencias: formData.ocorrencias
       };
 
@@ -80,8 +68,6 @@ export function Relatos() {
         descricao: '',
         humor: 'normal',
         sintomas: [],
-        pressaoArterial: '',
-        batimentosCardiacos: '',
         ocorrencias: '',
       });
       setShowForm(false);
@@ -145,33 +131,6 @@ export function Relatos() {
                   <option value="triste">😢 Triste</option>
                   <option value="ansioso">😰 Ansioso</option>
                 </select>
-              </div>
-            </div>
-
-            <div className="p-6 border rounded-xl bg-rose-50/30 border-rose-100">
-              <h4 className="mb-4 text-sm font-bold text-rose-700">Sinais Vitais (Opcional)</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block mb-2 text-xs font-bold tracking-wide uppercase text-stone-600">
-                    Pressão Arterial (ex: 120/80)
-                  </label>
-                  <Input
-                    value={formData.pressaoArterial}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pressaoArterial: e.target.value }))}
-                    placeholder="120/80"
-                  />
-                </div>
-                <div>
-                  <label className="block mb-2 text-xs font-bold tracking-wide uppercase text-stone-600">
-                    Batimentos Cardíacos (BPM)
-                  </label>
-                  <Input
-                    type="number"
-                    value={formData.batimentosCardiacos}
-                    onChange={(e) => setFormData(prev => ({ ...prev, batimentosCardiacos: e.target.value }))}
-                    placeholder="80"
-                  />
-                </div>
               </div>
             </div>
 
@@ -268,13 +227,6 @@ export function Relatos() {
                       {sintoma}
                     </span>
                   ))}
-                </div>
-              )}
-              {(relato.sinaisVitais?.pressao || relato.sinaisVitais?.batimentos) && (
-                <div className="inline-block p-3 mt-4 text-xs text-stone-600 bg-stone-50 rounded-xl">
-                  <strong>Sinais Vitais: </strong>
-                  {relato.sinaisVitais.pressao && `PA: ${relato.sinaisVitais.pressao} `}
-                  {relato.sinaisVitais.batimentos && `| BPM: ${relato.sinaisVitais.batimentos}`}
                 </div>
               )}
               {relato.ocorrencias && typeof relato.ocorrencias === 'string' && !relato.ocorrencias.toLowerCase().includes('nenhuma') && (

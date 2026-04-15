@@ -28,6 +28,16 @@ class MedicamentoIn(BaseModel):
     observacoes: str | None = None
 
 
+class MedicamentoUpdateIn(BaseModel):
+    nome: str | None = None
+    dosagem: str | None = None
+    frequencia: str | None = None
+    dataInicio: date | None = None
+    dataFim: date | None = None
+    ativo: bool | None = None
+    observacoes: str | None = None
+
+
 class ConsultaOut(BaseModel):
     id: str
     gestanteId: str
@@ -78,6 +88,49 @@ class ProntuarioIn(BaseModel):
     medicoId: str | None = None
 
 
+class ProntuarioUpdateIn(BaseModel):
+    data: date | None = None
+    descricao: str | None = None
+    medicamentosPrescritos: list[str] | None = None
+    acoesRealizadas: str | None = None
+    medicoId: str | None = None
+
+
+class CadastroGestanteOut(BaseModel):
+    riskClassification: Literal["habitual", "intermediario", "alto"] = "habitual"
+    chronicConditions: list[str] = Field(default_factory=list)
+    previousPregnancyComplications: list[str] = Field(default_factory=list)
+    familyHistory: list[str] = Field(default_factory=list)
+    allergies: str | None = None
+    continuousMedications: str | None = None
+    surgeries: str | None = None
+    obstetricHistory: str | None = None
+    mentalHealthNotes: str | None = None
+    socialContext: str | None = None
+    additionalNotes: str | None = None
+
+
+class CadastroGestanteIn(BaseModel):
+    riskClassification: Literal["habitual", "intermediario", "alto"] = "habitual"
+    chronicConditions: list[str] = Field(default_factory=list)
+    previousPregnancyComplications: list[str] = Field(default_factory=list)
+    familyHistory: list[str] = Field(default_factory=list)
+    allergies: str | None = None
+    continuousMedications: str | None = None
+    surgeries: str | None = None
+    obstetricHistory: str | None = None
+    mentalHealthNotes: str | None = None
+    socialContext: str | None = None
+    additionalNotes: str | None = None
+
+
+class RelatoClinicoUpdateIn(BaseModel):
+    clinicalPriority: Literal["baixa", "normal", "alta", "critica"] | None = None
+    highlightForConsultation: bool | None = None
+    priorityReason: str | None = None
+    doctorNote: str | None = None
+
+
 class ResumoOut(BaseModel):
     id: str
     gestanteId: str
@@ -102,28 +155,6 @@ class ResumoGerarIn(BaseModel):
     gestanteId: str
     periodo_inicio: datetime
     periodo_fim: datetime
-
-
-class SinalVitalIn(BaseModel):
-    data_registro: datetime
-    pressao_sistolica: int | None = None
-    pressao_diastolica: int | None = None
-    frequencia_cardiaca: int | None = None
-    saturacao_oxigenio: int | None = None
-    peso_kg: int | None = None
-    temperatura_c: int | None = None
-
-
-class SinalVitalOut(BaseModel):
-    id: str
-    gestanteId: str
-    data_registro: datetime
-    pressao_sistolica: int | None = None
-    pressao_diastolica: int | None = None
-    frequencia_cardiaca: int | None = None
-    saturacao_oxigenio: int | None = None
-    peso_kg: int | None = None
-    temperatura_c: int | None = None
 
 
 class AlertNoteOut(BaseModel):

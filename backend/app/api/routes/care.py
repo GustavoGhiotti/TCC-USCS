@@ -15,28 +15,30 @@ from app.models.orientacao import Orientacao
 from app.models.prontuario import Prontuario
 from app.models.relato import RelatoDiario
 from app.models.resumo_ia import ResumoIA
-from app.models.sinal_vital import SinalVital
 from app.models.user import User
 from app.schemas.care import (
     AlertNoteIn,
     AlertNoteOut,
     AlertOut,
     AlertsKPIOut,
+    CadastroGestanteIn,
+    CadastroGestanteOut,
     ConsultaIn,
     ConsultaOut,
     MedicoKPIOut,
     MedicoPacienteOut,
     MedicamentoIn,
     MedicamentoOut,
+    MedicamentoUpdateIn,
     OrientacaoIn,
     OrientacaoOut,
     ProntuarioIn,
     ProntuarioOut,
+    ProntuarioUpdateIn,
+    RelatoClinicoUpdateIn,
     ResumoGerarIn,
     ResumoOut,
     ResumoReviewIn,
-    SinalVitalIn,
-    SinalVitalOut,
 )
 
 router = APIRouter(tags=["Care"])
@@ -91,27 +93,98 @@ def _map_resumo_out(resumo: ResumoIA, *, for_patient: bool) -> ResumoOut:
         aprovadoEm=resumo.revisado_em,
     )
 
+def _get_medicamento_by_id(db: Session, medicamento_id: str) -> Medicamento:
+    med = db.scalar(select(Medicamento).where(Medicamento.id == medicamento_id))
+    if not med:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Medicamento nao encontrado.")
+    return med
+
+
+def _map_medicamento_out(med: Medicamento) -> MedicamentoOut:
+    return MedicamentoOut(
+        id=med.id,
+        gestanteId=med.gestante_id,
+        nome=med.nome,
+        dosagem=med.dosagem,
+        frequencia=med.frequencia,
+        dataInicio=med.data_inicio,
+        dataFim=med.data_fim,
+        dataPrescricao=(med.data_inicio or date.today()),
+        ativo=med.ativo,
+        observacoes=med.observacoes,
+    )
+
+
+def _get_prontuario_by_id(db: Session, prontuario_id: str) -> Prontuario:
+    prontuario = db.scalar(select(Prontuario).where(Prontuario.id == prontuario_id))
+    if not prontuario:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prontuario nao encontrado.")
+    return prontuario
+
+
+def _get_relato_by_id(db: Session, relato_id: str) -> RelatoDiario:
+    relato = db.scalar(select(RelatoDiario).where(RelatoDiario.id == relato_id))
+    if not relato:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relato nao encontrado.")
+    return relato
+
+
+def _map_relato_detail_out(relato: RelatoDiario, gestante_id: str) -> dict:
+    return {
+        "id": relato.id,
+        "patientId": gestante_id,
+        "date": datetime.combine(relato.data_relato, datetime.min.time()).replace(tzinfo=UTC).isoformat(),
+        "description": relato.descricao or "",
+        "mood": relato.humor,
+        "symptoms": json.loads(relato.sintomas_json or "[]"),
+        "clinicalPriority": (
+            relato.prioridade_clinica
+            if relato.prioridade_clinica in {"baixa", "normal", "alta", "critica"}
+            else "normal"
+        ),
+        "highlightForConsultation": bool(relato.destaque_consulta),
+        "priorityReason": relato.motivo_prioridade,
+        "doctorNote": relato.nota_medica,
+    }
+
+
+def _map_prontuario_out(record: Prontuario) -> ProntuarioOut:
+    return ProntuarioOut(
+        id=record.id,
+        gestanteId=record.gestante_id,
+        data=record.data.date(),
+        descricao=record.descricao,
+        medicamentosPrescritos=json.loads(record.medicamentos_prescritos_json or "[]"),
+        acoesRealizadas=record.acoes_realizadas or "",
+        medicoId=record.medico_id,
+    )
+
+
+def _parse_cadastro_gestante(raw_value: str | None) -> CadastroGestanteOut:
+    default = CadastroGestanteOut()
+    if not raw_value:
+        return default
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return CadastroGestanteOut(additionalNotes=raw_value)
+    if isinstance(parsed, dict) and "profile" in parsed and isinstance(parsed["profile"], dict):
+        return CadastroGestanteOut.model_validate(parsed["profile"])
+    if isinstance(parsed, dict):
+        return CadastroGestanteOut.model_validate(parsed)
+    return default
+
+
+def _serialize_cadastro_gestante(payload: CadastroGestanteIn) -> str:
+    return json.dumps({"profile": payload.model_dump()}, ensure_ascii=False)
+
 
 @router.get("/medicamentos/me", response_model=list[MedicamentoOut])
 def medicamentos_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     _require_role(current_user, "gestante")
     gestante = _get_gestante_by_user(db, current_user.id)
     meds = list(db.scalars(select(Medicamento).where(Medicamento.gestante_id == gestante.id).order_by(desc(Medicamento.created_at))))
-    return [
-        MedicamentoOut(
-            id=m.id,
-            gestanteId=m.gestante_id,
-            nome=m.nome,
-            dosagem=m.dosagem,
-            frequencia=m.frequencia,
-            dataInicio=m.data_inicio,
-            dataFim=m.data_fim,
-            dataPrescricao=(m.data_inicio or date.today()),
-            ativo=m.ativo,
-            observacoes=m.observacoes,
-        )
-        for m in meds
-    ]
+    return [_map_medicamento_out(m) for m in meds]
 
 
 @router.post("/medicamentos", response_model=MedicamentoOut)
@@ -134,18 +207,49 @@ def create_medicamento(payload: MedicamentoIn, current_user: User = Depends(get_
     db.commit()
     db.refresh(med)
 
-    return MedicamentoOut(
-        id=med.id,
-        gestanteId=med.gestante_id,
-        nome=med.nome,
-        dosagem=med.dosagem,
-        frequencia=med.frequencia,
-        dataInicio=med.data_inicio,
-        dataFim=med.data_fim,
-        dataPrescricao=(med.data_inicio or date.today()),
-        ativo=med.ativo,
-        observacoes=med.observacoes,
-    )
+    return _map_medicamento_out(med)
+
+
+@router.patch("/medicamentos/{medicamento_id}", response_model=MedicamentoOut)
+def update_medicamento(
+    medicamento_id: str,
+    payload: MedicamentoUpdateIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    med = _get_medicamento_by_id(db, medicamento_id)
+
+    if payload.nome is not None:
+        med.nome = payload.nome
+    if payload.dosagem is not None:
+        med.dosagem = payload.dosagem
+    if payload.frequencia is not None:
+        med.frequencia = payload.frequencia
+    if payload.dataInicio is not None:
+        med.data_inicio = payload.dataInicio
+    if payload.dataFim is not None:
+        med.data_fim = payload.dataFim
+    if payload.ativo is not None:
+        med.ativo = payload.ativo
+    if payload.observacoes is not None:
+        med.observacoes = payload.observacoes
+
+    db.commit()
+    db.refresh(med)
+    return _map_medicamento_out(med)
+
+
+@router.delete("/medicamentos/{medicamento_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_medicamento(
+    medicamento_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    med = _get_medicamento_by_id(db, medicamento_id)
+    db.delete(med)
+    db.commit()
 
 
 @router.get("/consultas/me", response_model=list[ConsultaOut])
@@ -230,18 +334,7 @@ def prontuarios_me(current_user: User = Depends(get_current_user), db: Session =
     _require_role(current_user, "gestante")
     gestante = _get_gestante_by_user(db, current_user.id)
     rows = list(db.scalars(select(Prontuario).where(Prontuario.gestante_id == gestante.id).order_by(desc(Prontuario.data))))
-    return [
-        ProntuarioOut(
-            id=r.id,
-            gestanteId=r.gestante_id,
-            data=r.data.date(),
-            descricao=r.descricao,
-            medicamentosPrescritos=json.loads(r.medicamentos_prescritos_json or "[]"),
-            acoesRealizadas=r.acoes_realizadas or "",
-            medicoId=r.medico_id,
-        )
-        for r in rows
-    ]
+    return [_map_prontuario_out(r) for r in rows]
 
 
 @router.post("/prontuarios", response_model=ProntuarioOut)
@@ -259,15 +352,69 @@ def create_prontuario(payload: ProntuarioIn, current_user: User = Depends(get_cu
     db.add(r)
     db.commit()
     db.refresh(r)
-    return ProntuarioOut(
-        id=r.id,
-        gestanteId=r.gestante_id,
-        data=r.data.date(),
-        descricao=r.descricao,
-        medicamentosPrescritos=json.loads(r.medicamentos_prescritos_json),
-        acoesRealizadas=r.acoes_realizadas or "",
-        medicoId=r.medico_id,
-    )
+    return _map_prontuario_out(r)
+
+
+@router.patch("/prontuarios/{prontuario_id}", response_model=ProntuarioOut)
+def update_prontuario(
+    prontuario_id: str,
+    payload: ProntuarioUpdateIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    prontuario = _get_prontuario_by_id(db, prontuario_id)
+
+    if payload.data is not None:
+        prontuario.data = datetime.combine(payload.data, datetime.min.time()).replace(tzinfo=UTC)
+    if payload.descricao is not None:
+        prontuario.descricao = payload.descricao
+    if payload.medicamentosPrescritos is not None:
+        prontuario.medicamentos_prescritos_json = json.dumps(payload.medicamentosPrescritos, ensure_ascii=False)
+    if payload.acoesRealizadas is not None:
+        prontuario.acoes_realizadas = payload.acoesRealizadas
+    if payload.medicoId is not None:
+        prontuario.medico_id = payload.medicoId
+
+    db.commit()
+    db.refresh(prontuario)
+    return _map_prontuario_out(prontuario)
+
+
+@router.delete("/prontuarios/{prontuario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_prontuario(
+    prontuario_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    prontuario = _get_prontuario_by_id(db, prontuario_id)
+    db.delete(prontuario)
+    db.commit()
+
+
+@router.patch("/medicos/relatos/{relato_id}")
+def update_relato_clinico(
+    relato_id: str,
+    payload: RelatoClinicoUpdateIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    relato = _get_relato_by_id(db, relato_id)
+
+    if payload.clinicalPriority is not None:
+        relato.prioridade_clinica = payload.clinicalPriority
+    if payload.highlightForConsultation is not None:
+        relato.destaque_consulta = payload.highlightForConsultation
+    if payload.priorityReason is not None:
+        relato.motivo_prioridade = payload.priorityReason or None
+    if payload.doctorNote is not None:
+        relato.nota_medica = payload.doctorNote or None
+
+    db.commit()
+    db.refresh(relato)
+    return _map_relato_detail_out(relato, relato.gestante_id)
 
 
 @router.get("/resumos-ia/me", response_model=list[ResumoOut])
@@ -373,127 +520,6 @@ def aprovar_resumo_ia(
     db.commit()
     db.refresh(resumo)
     return _map_resumo_out(resumo, for_patient=False)
-
-
-@router.get("/sinais-vitais/me", response_model=list[SinalVitalOut])
-def sinais_vitais_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _require_role(current_user, "gestante")
-    gestante = _get_gestante_by_user(db, current_user.id)
-    rows = list(db.scalars(select(SinalVital).where(SinalVital.gestante_id == gestante.id).order_by(desc(SinalVital.data_registro))))
-    return [
-        SinalVitalOut(
-            id=r.id,
-            gestanteId=r.gestante_id,
-            data_registro=r.data_registro,
-            pressao_sistolica=r.pressao_sistolica,
-            pressao_diastolica=r.pressao_diastolica,
-            frequencia_cardiaca=r.frequencia_cardiaca,
-            saturacao_oxigenio=r.saturacao_oxigenio,
-            peso_kg=r.peso_kg,
-            temperatura_c=r.temperatura_c,
-        )
-        for r in rows
-    ]
-
-
-@router.post("/sinais-vitais", response_model=SinalVitalOut)
-def create_sinal_vital(payload: SinalVitalIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    _require_role(current_user, "gestante")
-    gestante = _get_gestante_by_user(db, current_user.id)
-
-    r = SinalVital(
-        gestante_id=gestante.id,
-        data_registro=payload.data_registro,
-        pressao_sistolica=payload.pressao_sistolica,
-        pressao_diastolica=payload.pressao_diastolica,
-        frequencia_cardiaca=payload.frequencia_cardiaca,
-        saturacao_oxigenio=payload.saturacao_oxigenio,
-        peso_kg=payload.peso_kg,
-        temperatura_c=payload.temperatura_c,
-    )
-    db.add(r)
-    db.flush()
-
-    if (payload.pressao_sistolica or 0) >= 140 or (payload.pressao_diastolica or 0) >= 90:
-        db.add(
-            Alerta(
-                gestante_id=gestante.id,
-                patient_name=gestante.nome_completo,
-                patient_ig=(f"{gestante.semanas_gestacao_atual or 0}s"),
-                tipo="PA fora do padrao",
-                severity="high",
-                status="pending",
-                metric_label="Pressao arterial",
-                metric_value=f"PA: {payload.pressao_sistolica or '-'} / {payload.pressao_diastolica or '-'} mmHg",
-                created_at_event=datetime.now(UTC),
-            )
-        )
-
-    db.commit()
-    db.refresh(r)
-
-    return SinalVitalOut(
-        id=r.id,
-        gestanteId=r.gestante_id,
-        data_registro=r.data_registro,
-        pressao_sistolica=r.pressao_sistolica,
-        pressao_diastolica=r.pressao_diastolica,
-        frequencia_cardiaca=r.frequencia_cardiaca,
-        saturacao_oxigenio=r.saturacao_oxigenio,
-        peso_kg=r.peso_kg,
-        temperatura_c=r.temperatura_c,
-    )
-
-
-@router.post("/medicos/pacientes/{gestante_id}/sinais-vitais", response_model=SinalVitalOut)
-def create_sinal_vital_medico(
-    gestante_id: str, payload: SinalVitalIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
-):
-    _require_role(current_user, "medico")
-    gestante = _get_gestante_by_id(db, gestante_id)
-
-    r = SinalVital(
-        gestante_id=gestante.id,
-        data_registro=payload.data_registro,
-        pressao_sistolica=payload.pressao_sistolica,
-        pressao_diastolica=payload.pressao_diastolica,
-        frequencia_cardiaca=payload.frequencia_cardiaca,
-        saturacao_oxigenio=payload.saturacao_oxigenio,
-        peso_kg=payload.peso_kg,
-        temperatura_c=payload.temperatura_c,
-    )
-    db.add(r)
-    db.flush()
-
-    if (payload.pressao_sistolica or 0) >= 140 or (payload.pressao_diastolica or 0) >= 90:
-        db.add(
-            Alerta(
-                gestante_id=gestante.id,
-                patient_name=gestante.nome_completo,
-                patient_ig=(f"{gestante.semanas_gestacao_atual or 0}s"),
-                tipo="PA fora do padrao",
-                severity="high",
-                status="pending",
-                metric_label="Pressao arterial",
-                metric_value=f"PA: {payload.pressao_sistolica or '-'} / {payload.pressao_diastolica or '-'} mmHg",
-                created_at_event=datetime.now(UTC),
-            )
-        )
-
-    db.commit()
-    db.refresh(r)
-
-    return SinalVitalOut(
-        id=r.id,
-        gestanteId=r.gestante_id,
-        data_registro=r.data_registro,
-        pressao_sistolica=r.pressao_sistolica,
-        pressao_diastolica=r.pressao_diastolica,
-        frequencia_cardiaca=r.frequencia_cardiaca,
-        saturacao_oxigenio=r.saturacao_oxigenio,
-        peso_kg=r.peso_kg,
-        temperatura_c=r.temperatura_c,
-    )
 
 
 @router.get("/medicos/pacientes", response_model=list[MedicoPacienteOut])
@@ -715,15 +741,6 @@ def medico_paciente_detalhe(gestante_id: str, current_user: User = Depends(get_c
     relatos = list(db.scalars(select(RelatoDiario).where(RelatoDiario.gestante_id == g.id).order_by(desc(RelatoDiario.data_relato))))
     meds = list(db.scalars(select(Medicamento).where(Medicamento.gestante_id == g.id).order_by(desc(Medicamento.created_at))))
     records = list(db.scalars(select(Prontuario).where(Prontuario.gestante_id == g.id).order_by(desc(Prontuario.data))))
-    vitais = list(db.scalars(select(SinalVital).where(SinalVital.gestante_id == g.id).order_by(SinalVital.data_registro.asc())))
-
-    dates = [v.data_registro.date().isoformat() for v in vitais[-7:]]
-    systolic = [v.pressao_sistolica or 0 for v in vitais[-7:]]
-    diastolic = [v.pressao_diastolica or 0 for v in vitais[-7:]]
-    heart = [v.frequencia_cardiaca or 0 for v in vitais[-7:]]
-    oxygen = [v.saturacao_oxigenio or 0 for v in vitais[-7:]]
-    weight = [v.peso_kg or 0 for v in vitais[-7:]]
-
     top_symptoms: dict[str, int] = {}
     for r in relatos:
         for s in json.loads(r.sintomas_json or "[]"):
@@ -751,63 +768,9 @@ def medico_paciente_detalhe(gestante_id: str, current_user: User = Depends(get_c
         "address": "",
         "bloodType": g.tipo_sanguineo,
         "firstAppointmentDate": None,
-        "lastVitals": (
-            {
-                "id": vitais[-1].id,
-                "patientId": g.id,
-                "date": vitais[-1].data_registro.isoformat(),
-                "bloodPressureSystolic": vitais[-1].pressao_sistolica or 0,
-                "bloodPressureDiastolic": vitais[-1].pressao_diastolica or 0,
-                "heartRate": vitais[-1].frequencia_cardiaca or 0,
-                "oxygenSaturation": vitais[-1].saturacao_oxigenio or 0,
-                "weight": vitais[-1].peso_kg or 0,
-            }
-            if vitais
-            else None
-        ),
-        "vitalsHistory": {
-            "dates": dates,
-            "systolic": systolic,
-            "diastolic": diastolic,
-            "heartRate": heart,
-            "oxygenSaturation": oxygen,
-            "weight": weight,
-        },
     }
 
-    reports = [
-        {
-            "id": r.id,
-            "patientId": g.id,
-            "date": datetime.combine(r.data_relato, datetime.min.time()).replace(tzinfo=UTC).isoformat(),
-            "description": r.descricao or "",
-            "mood": r.humor,
-            "symptoms": json.loads(r.sintomas_json or "[]"),
-            "vitalSigns": (
-                {
-                    "bloodPressureSystolic": r.pressao_sistolica,
-                    "bloodPressureDiastolic": r.pressao_diastolica,
-                    "heartRate": r.frequencia_cardiaca,
-                    "oxygenSaturation": r.saturacao_oxigenio,
-                    "weight": r.peso_kg,
-                    "temperature": r.temperatura_c,
-                }
-                if any(
-                    value is not None
-                    for value in (
-                        r.pressao_sistolica,
-                        r.pressao_diastolica,
-                        r.frequencia_cardiaca,
-                        r.saturacao_oxigenio,
-                        r.peso_kg,
-                        r.temperatura_c,
-                    )
-                )
-                else None
-            ),
-        }
-        for r in relatos
-    ]
+    reports = [_map_relato_detail_out(r, g.id) for r in relatos]
     medications = [
         {
             "id": m.id,
@@ -855,6 +818,7 @@ def medico_paciente_detalhe(gestante_id: str, current_user: User = Depends(get_c
         "reports": reports,
         "medications": medications,
         "medicalRecords": medical_records,
+        "prenatalProfile": _parse_cadastro_gestante(g.observacoes).model_dump(),
         "summary": {
             "patientId": g.id,
             "generatedAt": datetime.now(UTC).isoformat(),
@@ -864,3 +828,29 @@ def medico_paciente_detalhe(gestante_id: str, current_user: User = Depends(get_c
         },
         "timeline": timeline,
     }
+
+
+@router.get("/medicos/pacientes/{gestante_id}/cadastro-prenatal", response_model=CadastroGestanteOut)
+def medico_get_cadastro_prenatal(
+    gestante_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    gestante = _get_gestante_by_id(db, gestante_id)
+    return _parse_cadastro_gestante(gestante.observacoes)
+
+
+@router.patch("/medicos/pacientes/{gestante_id}/cadastro-prenatal", response_model=CadastroGestanteOut)
+def medico_update_cadastro_prenatal(
+    gestante_id: str,
+    payload: CadastroGestanteIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    gestante = _get_gestante_by_id(db, gestante_id)
+    gestante.observacoes = _serialize_cadastro_gestante(payload)
+    db.commit()
+    db.refresh(gestante)
+    return _parse_cadastro_gestante(gestante.observacoes)

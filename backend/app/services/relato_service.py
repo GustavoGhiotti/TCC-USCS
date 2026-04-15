@@ -8,7 +8,6 @@ from app.models.user import User
 from app.repositories.gestante_repository import GestanteRepository
 from app.repositories.relato_repository import RelatoRepository
 from app.schemas.relato import RelatoCreateRequest, RelatoResponse
-from app.models.sinal_vital import SinalVital
 
 
 class RelatoService:
@@ -52,14 +51,7 @@ class RelatoService:
             existing.humor = payload.humor
             existing.sintomas_json = json.dumps(payload.sintomas, ensure_ascii=False)
             existing.descricao = payload.descricao or None
-            existing.pressao_sistolica = payload.pressao_sistolica
-            existing.pressao_diastolica = payload.pressao_diastolica
-            existing.frequencia_cardiaca = payload.frequencia_cardiaca
-            existing.saturacao_oxigenio = payload.saturacao_oxigenio
-            existing.peso_kg = payload.peso_kg
-            existing.temperatura_c = payload.temperatura_c
             self.db.add(existing)
-            self._upsert_vitals_for_report(gestante_id, existing.data_relato, payload)
             self.db.commit()
             self.db.refresh(existing)
             return self._to_response(existing)
@@ -70,61 +62,10 @@ class RelatoService:
             humor=payload.humor,
             sintomas_json=json.dumps(payload.sintomas, ensure_ascii=False),
             descricao=payload.descricao or None,
-            pressao_sistolica=payload.pressao_sistolica,
-            pressao_diastolica=payload.pressao_diastolica,
-            frequencia_cardiaca=payload.frequencia_cardiaca,
-            saturacao_oxigenio=payload.saturacao_oxigenio,
-            peso_kg=payload.peso_kg,
-            temperatura_c=payload.temperatura_c,
         )
-        self._upsert_vitals_for_report(gestante_id, payload.data, payload)
         self.db.commit()
         self.db.refresh(relato)
         return self._to_response(relato)
-
-    def _upsert_vitals_for_report(self, gestante_id: str, report_date: date, payload: RelatoCreateRequest) -> None:
-        has_vitals = any(
-            value is not None
-            for value in (
-                payload.pressao_sistolica,
-                payload.pressao_diastolica,
-                payload.frequencia_cardiaca,
-                payload.saturacao_oxigenio,
-                payload.peso_kg,
-                payload.temperatura_c,
-            )
-        )
-        if not has_vitals:
-            return
-
-        report_dt = datetime.combine(report_date, datetime.min.time())
-        existing = self.db.query(SinalVital).filter(
-            SinalVital.gestante_id == gestante_id,
-            SinalVital.data_registro == report_dt,
-        ).one_or_none()
-
-        if existing:
-            existing.pressao_sistolica = payload.pressao_sistolica
-            existing.pressao_diastolica = payload.pressao_diastolica
-            existing.frequencia_cardiaca = payload.frequencia_cardiaca
-            existing.saturacao_oxigenio = payload.saturacao_oxigenio
-            existing.peso_kg = payload.peso_kg
-            existing.temperatura_c = payload.temperatura_c
-            self.db.add(existing)
-            return
-
-        self.db.add(
-            SinalVital(
-                gestante_id=gestante_id,
-                data_registro=report_dt,
-                pressao_sistolica=payload.pressao_sistolica,
-                pressao_diastolica=payload.pressao_diastolica,
-                frequencia_cardiaca=payload.frequencia_cardiaca,
-                saturacao_oxigenio=payload.saturacao_oxigenio,
-                peso_kg=payload.peso_kg,
-                temperatura_c=payload.temperatura_c,
-            )
-        )
 
     @staticmethod
     def _to_response(relato) -> RelatoResponse:
@@ -140,12 +81,6 @@ class RelatoService:
             humor=relato.humor,
             sintomas=sintomas,
             descricao=relato.descricao,
-            pressao_sistolica=relato.pressao_sistolica,
-            pressao_diastolica=relato.pressao_diastolica,
-            frequencia_cardiaca=relato.frequencia_cardiaca,
-            saturacao_oxigenio=relato.saturacao_oxigenio,
-            peso_kg=relato.peso_kg,
-            temperatura_c=relato.temperatura_c,
             created_at=relato.created_at,
             updated_at=relato.updated_at,
         )

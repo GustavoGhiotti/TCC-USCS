@@ -102,7 +102,7 @@ export function ConsentimentoLGPD() {
                 </svg>
               }
               title="Dados coletados"
-              desc="Relatos diários de saúde, sinais vitais, medicamentos prescritos e informações clínicas relacionadas à gestação."
+              desc="Relatos diários de saúde, medicamentos prescritos e informações clínicas relacionadas à gestação."
             />
             <BulletItem
               icon={

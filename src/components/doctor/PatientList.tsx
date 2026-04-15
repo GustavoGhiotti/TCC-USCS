@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { type Patient } from '../../types/doctor';
 import { AlertBadge } from './AlertBadge';
@@ -7,15 +8,28 @@ interface PatientListProps {
   patients: Patient[];
 }
 
-const MOOD_EMOJI: Record<string, string> = {
-  feliz: '😊', normal: '😐', triste: '😔', ansioso: '😰',
-};
-
 export function PatientList({ patients }: PatientListProps) {
   const navigate = useNavigate();
 
-  function open(id: string)         { navigate(`/doctor/patients/${id}`); }
-  function openTab(id: string, tab: string) { navigate(`/doctor/patients/${id}?tab=${tab}`); }
+  function open(id: string) {
+    navigate(`/doctor/patients/${id}`);
+  }
+
+  function openTab(id: string, tab: string) {
+    navigate(`/doctor/patients/${id}?tab=${tab}`);
+  }
+
+  function handleRowKeyDown(event: KeyboardEvent<HTMLElement>, id: string) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      open(id);
+    }
+  }
+
+  function stopAndRun(event: React.MouseEvent<HTMLButtonElement>, action: () => void) {
+    event.stopPropagation();
+    action();
+  }
 
   if (patients.length === 0) {
     return (
@@ -30,7 +44,6 @@ export function PatientList({ patients }: PatientListProps) {
 
   return (
     <>
-      {/* ─── Tabela (desktop/tablet) ─────────────────────────────────────────── */}
       <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-100 shadow-card">
         <table className="w-full text-sm">
           <thead>
@@ -45,10 +58,7 @@ export function PatientList({ patients }: PatientListProps) {
                 Último relato
               </th>
               <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                PA (mmHg)
-              </th>
-              <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                FC / O₂
+                Alertas
               </th>
               <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">
                 Status
@@ -59,84 +69,72 @@ export function PatientList({ patients }: PatientListProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {patients.map(p => {
-              const ig = p.gestationalWeeks != null
-                ? `${p.gestationalWeeks}s${p.gestationalDays != null ? ` ${p.gestationalDays}d` : ''}`
+            {patients.map((patient) => {
+              const ig = patient.gestationalWeeks != null
+                ? `${patient.gestationalWeeks}s${patient.gestationalDays != null ? ` ${patient.gestationalDays}d` : ''}`
                 : '—';
-              const pa = p.lastVitals
-                ? `${p.lastVitals.bloodPressureSystolic}/${p.lastVitals.bloodPressureDiastolic}`
-                : '—';
-              const fc = p.lastVitals?.heartRate ?? '—';
-              const o2 = p.lastVitals?.oxygenSaturation ?? '—';
 
               return (
                 <tr
-                  key={p.id}
-                  className="hover:bg-slate-50 transition-colors"
+                  key={patient.id}
+                  className="cursor-pointer transition-colors hover:bg-slate-50"
+                  onClick={() => open(patient.id)}
+                  onKeyDown={(event) => handleRowKeyDown(event, patient.id)}
+                  tabIndex={0}
+                  aria-label={`Abrir detalhes de ${patient.name}`}
                 >
-                  {/* Nome */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div
                         className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 font-semibold text-sm flex items-center justify-center flex-shrink-0"
                         aria-hidden="true"
                       >
-                        {p.name.charAt(0)}
+                        {patient.name.charAt(0)}
                       </div>
                       <div>
-                        <p className="font-medium text-slate-800">{p.name}</p>
-                        <p className="text-xs text-slate-400">{p.age} anos · {p.cpf}</p>
+                        <p className="font-medium text-slate-800">{patient.name}</p>
+                        <p className="text-xs text-slate-400">{patient.age} anos · {patient.cpf}</p>
                       </div>
                     </div>
                   </td>
 
-                  {/* IG */}
                   <td className="px-4 py-3 tabular-nums text-slate-700">{ig}</td>
 
-                  {/* Último relato */}
                   <td className="px-4 py-3 text-slate-600">
-                    {p.lastReportDate ? relativeDate(p.lastReportDate) : '—'}
+                    {patient.lastReportDate ? relativeDate(patient.lastReportDate) : '—'}
                   </td>
 
-                  {/* PA */}
-                  <td className={`px-4 py-3 tabular-nums font-medium ${p.alertLevel === 'high' ? 'text-red-700' : p.alertLevel === 'medium' ? 'text-amber-700' : 'text-slate-700'}`}>
-                    {pa}
-                  </td>
-
-                  {/* FC / O2 */}
                   <td className="px-4 py-3 text-slate-600 tabular-nums">
-                    {fc} bpm · {o2}%
+                    {patient.alertFlags?.length ? patient.alertFlags.slice(0, 2).join(' · ') : '—'}
                   </td>
 
-                  {/* Status */}
                   <td className="px-4 py-3">
-                    <AlertBadge level={p.alertLevel} />
+                    <AlertBadge level={patient.alertLevel} />
                   </td>
 
-                  {/* Ações */}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
-                        onClick={() => open(p.id)}
+                        onClick={(event) => stopAndRun(event, () => open(patient.id))}
                         className="px-3 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
-                        aria-label={`Abrir detalhes de ${p.name}`}
+                        aria-label={`Abrir detalhes de ${patient.name}`}
                       >
                         Abrir
                       </button>
                       <button
                         type="button"
-                        onClick={() => openTab(p.id, 'prontuario')}
+                        onClick={(event) => stopAndRun(event, () => openTab(patient.id, 'prontuario'))}
                         className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                        aria-label={`Ver prontuário de ${p.name}`}
+                        aria-label={`Ver prontuário de ${patient.name}`}
                       >
                         Prontuário
                       </button>
                       <button
                         type="button"
-                        onClick={() => openTab(p.id, 'medicamentos')}
+                        onClick={(event) => stopAndRun(event, () => openTab(patient.id, 'medicamentos'))}
                         className="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                        aria-label={`Adicionar medicamento para ${p.name}`}
+                        aria-label={`Adicionar medicamento para ${patient.name}`}
                       >
                         + Med.
                       </button>
@@ -149,47 +147,51 @@ export function PatientList({ patients }: PatientListProps) {
         </table>
       </div>
 
-      {/* ─── Cards (mobile) ─────────────────────────────────────────────────── */}
       <ul className="md:hidden flex flex-col gap-3" role="list">
-        {patients.map(p => {
-          const ig = p.gestationalWeeks != null
-            ? `${p.gestationalWeeks}s${p.gestationalDays != null ? ` ${p.gestationalDays}d` : ''}`
-            : '—';
-          const pa = p.lastVitals
-            ? `${p.lastVitals.bloodPressureSystolic}/${p.lastVitals.bloodPressureDiastolic}`
+        {patients.map((patient) => {
+          const ig = patient.gestationalWeeks != null
+            ? `${patient.gestationalWeeks}s${patient.gestationalDays != null ? ` ${patient.gestationalDays}d` : ''}`
             : '—';
 
           return (
-            <li key={p.id} role="listitem" className="bg-white rounded-xl border border-slate-100 shadow-card p-4">
+            <li
+              key={patient.id}
+              role="listitem"
+              className="cursor-pointer rounded-xl border border-slate-100 bg-white p-4 shadow-card transition-shadow hover:shadow-card-md"
+              onClick={() => open(patient.id)}
+              onKeyDown={(event) => handleRowKeyDown(event, patient.id)}
+              tabIndex={0}
+              aria-label={`Abrir detalhes de ${patient.name}`}
+            >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2.5">
                   <div
                     className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 font-semibold flex items-center justify-center flex-shrink-0"
                     aria-hidden="true"
                   >
-                    {p.name.charAt(0)}
+                    {patient.name.charAt(0)}
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{p.name}</p>
-                    <p className="text-xs text-slate-400">{p.age} anos · IG {ig}</p>
+                    <p className="font-semibold text-slate-800">{patient.name}</p>
+                    <p className="text-xs text-slate-400">{patient.age} anos · IG {ig}</p>
                   </div>
                 </div>
-                <AlertBadge level={p.alertLevel} />
+                <AlertBadge level={patient.alertLevel} />
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-xs text-center mb-3">
                 <div className="bg-slate-50 rounded-lg p-2">
-                  <p className="text-slate-400 mb-0.5">PA</p>
-                  <p className="font-semibold text-slate-700">{pa}</p>
+                  <p className="text-slate-400 mb-0.5">Alertas</p>
+                  <p className="font-semibold text-slate-700">{patient.alertFlags?.length ?? 0}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg p-2">
-                  <p className="text-slate-400 mb-0.5">FC</p>
-                  <p className="font-semibold text-slate-700">{p.lastVitals?.heartRate ?? '—'} bpm</p>
+                  <p className="text-slate-400 mb-0.5">Status</p>
+                  <p className="font-semibold text-slate-700">{patient.alertLevel}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg p-2">
                   <p className="text-slate-400 mb-0.5">Último</p>
                   <p className="font-semibold text-slate-700">
-                    {p.lastReportDate ? relativeDate(p.lastReportDate) : '—'}
+                    {patient.lastReportDate ? relativeDate(patient.lastReportDate) : '—'}
                   </p>
                 </div>
               </div>
@@ -197,17 +199,17 @@ export function PatientList({ patients }: PatientListProps) {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => open(p.id)}
+                  onClick={(event) => stopAndRun(event, () => open(patient.id))}
                   className="flex-1 py-2 text-xs font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition-colors"
-                  aria-label={`Abrir detalhes de ${p.name}`}
+                  aria-label={`Abrir detalhes de ${patient.name}`}
                 >
                   Abrir prontuário
                 </button>
                 <button
                   type="button"
-                  onClick={() => openTab(p.id, 'medicamentos')}
+                  onClick={(event) => stopAndRun(event, () => openTab(patient.id, 'medicamentos'))}
                   className="px-3 py-2 text-xs font-semibold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-                  aria-label={`Adicionar medicamento para ${p.name}`}
+                  aria-label={`Adicionar medicamento para ${patient.name}`}
                 >
                   + Med.
                 </button>

@@ -20,7 +20,6 @@ export interface RelatoPayload {
   humor: RelatoDiario['humor'];
   sintomas: string[];
   descricao: string;
-  sinaisVitais?: RelatoDiario['sinaisVitais'];
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -55,12 +54,6 @@ export async function getRelatosGestanteService(
     humor: RelatoDiario['humor'];
     sintomas: string[];
     descricao: string | null;
-    pressao_sistolica?: number | null;
-    pressao_diastolica?: number | null;
-    frequencia_cardiaca?: number | null;
-    saturacao_oxigenio?: number | null;
-    peso_kg?: number | null;
-    temperatura_c?: number | null;
   }>>('/relatos/me', {
     params: { periodo },
   });
@@ -72,24 +65,6 @@ export async function getRelatosGestanteService(
     humor: r.humor,
     sintomas: r.sintomas ?? [],
     descricao: r.descricao ?? '',
-    sinaisVitais:
-      [
-        r.pressao_sistolica,
-        r.pressao_diastolica,
-        r.frequencia_cardiaca,
-        r.saturacao_oxigenio,
-        r.peso_kg,
-        r.temperatura_c,
-      ].some(value => value !== null && value !== undefined)
-        ? {
-            pressaoSistolica: r.pressao_sistolica ?? undefined,
-            pressaoDiastolica: r.pressao_diastolica ?? undefined,
-            frequenciaCardiaca: r.frequencia_cardiaca ?? undefined,
-            saturacaoOxigenio: r.saturacao_oxigenio ?? undefined,
-            pesoKg: r.peso_kg ?? undefined,
-            temperaturaC: r.temperatura_c ?? undefined,
-          }
-        : undefined,
   }));
 }
 
@@ -106,23 +81,11 @@ export async function createRelatoGestante(
     humor: RelatoDiario['humor'];
     sintomas: string[];
     descricao: string | null;
-    pressao_sistolica?: number | null;
-    pressao_diastolica?: number | null;
-    frequencia_cardiaca?: number | null;
-    saturacao_oxigenio?: number | null;
-    peso_kg?: number | null;
-    temperatura_c?: number | null;
   }>('/relatos', {
     data: payload.data,
     humor: payload.humor,
     sintomas: payload.sintomas,
     descricao: payload.descricao,
-    pressao_sistolica: payload.sinaisVitais?.pressaoSistolica,
-    pressao_diastolica: payload.sinaisVitais?.pressaoDiastolica,
-    frequencia_cardiaca: payload.sinaisVitais?.frequenciaCardiaca,
-    saturacao_oxigenio: payload.sinaisVitais?.saturacaoOxigenio,
-    peso_kg: payload.sinaisVitais?.pesoKg,
-    temperatura_c: payload.sinaisVitais?.temperaturaC,
   });
 
   return {
@@ -132,24 +95,6 @@ export async function createRelatoGestante(
     humor: data.humor,
     sintomas: data.sintomas ?? [],
     descricao: data.descricao ?? '',
-    sinaisVitais:
-      [
-        data.pressao_sistolica,
-        data.pressao_diastolica,
-        data.frequencia_cardiaca,
-        data.saturacao_oxigenio,
-        data.peso_kg,
-        data.temperatura_c,
-      ].some(value => value !== null && value !== undefined)
-        ? {
-            pressaoSistolica: data.pressao_sistolica ?? undefined,
-            pressaoDiastolica: data.pressao_diastolica ?? undefined,
-            frequenciaCardiaca: data.frequencia_cardiaca ?? undefined,
-            saturacaoOxigenio: data.saturacao_oxigenio ?? undefined,
-            pesoKg: data.peso_kg ?? undefined,
-            temperaturaC: data.temperatura_c ?? undefined,
-          }
-        : undefined,
   };
 }
 
@@ -203,6 +148,7 @@ export async function getResumosIAGestante(_gestanteId: string): Promise<ResumoI
     ...item,
     sintomasIdentificados: item.sintomasIdentificados ?? [],
     avisos: item.avisos ?? [],
+    aprovadoEm: item.aprovadoEm ?? undefined,
   }));
 }
 

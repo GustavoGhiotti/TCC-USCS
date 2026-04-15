@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DoctorLayout } from '../../components/layout/DoctorLayout';
 import { AlertBadge } from '../../components/doctor/AlertBadge';
-import { VitalsTrendCard } from '../../components/doctor/VitalsTrendCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
@@ -99,14 +98,12 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
 
   if (!alert) return null;
 
-  const patient = context?.patient;
   const reports = context?.reports.slice(0, 3) ?? [];
   const summary = context?.summary;
 
-  const vh = patient?.vitalsHistory;
-
   async function handleSaveNote() {
     if (!noteText.trim()) return;
+    if (!alert) return;
     setSavingNote(true);
     try {
       const note = await addAlertNote(alert.id, noteText);
@@ -146,29 +143,6 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
           <div className="flex justify-center py-6">
             <Spinner label="Carregando contexto do paciente…" />
           </div>
-        )}
-
-        {/* Sparklines de sinais vitais relevantes */}
-        {vh && !contextLoading && (
-          <section aria-label="Tendências de sinais vitais — últimos 7 dias" className="mb-5">
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Sinais vitais · últimos 7 dias
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <VitalsTrendCard label="PA sistólica" unit="mmHg"
-                currentValue={patient?.lastVitals?.bloodPressureSystolic ?? '—'}
-                values={vh.systolic} />
-              <VitalsTrendCard label="PA diastólica" unit="mmHg"
-                currentValue={patient?.lastVitals?.bloodPressureDiastolic ?? '—'}
-                values={vh.diastolic} />
-              <VitalsTrendCard label="FC" unit="bpm"
-                currentValue={patient?.lastVitals?.heartRate ?? '—'}
-                values={vh.heartRate} />
-              <VitalsTrendCard label="O₂" unit="%"
-                currentValue={patient?.lastVitals?.oxygenSaturation ?? '—'}
-                values={vh.oxygenSaturation} inverseScale />
-            </div>
-          </section>
         )}
 
         {/* Últimos relatos */}

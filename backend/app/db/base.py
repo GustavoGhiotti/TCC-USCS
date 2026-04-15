@@ -7,7 +7,6 @@ from app.models.orientacao import Orientacao
 from app.models.prontuario import Prontuario
 from app.models.relato import RelatoDiario
 from app.models.resumo_ia import ResumoIA
-from app.models.sinal_vital import SinalVital
 from app.models.user import User
 
 __all__ = [
@@ -17,7 +16,6 @@ __all__ = [
     "RelatoDiario",
     "Medicamento",
     "Consulta",
-    "SinalVital",
     "Orientacao",
     "Prontuario",
     "ResumoIA",

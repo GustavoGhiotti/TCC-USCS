@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import Date, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -24,3 +24,7 @@ class RelatoDiario(Base, TimestampMixin):
     saturacao_oxigenio: Mapped[Optional[int]] = mapped_column(nullable=True)
     peso_kg: Mapped[Optional[float]] = mapped_column(nullable=True)
     temperatura_c: Mapped[Optional[float]] = mapped_column(nullable=True)
+    prioridade_clinica: Mapped[str] = mapped_column(String(20), nullable=False, default="normal")
+    destaque_consulta: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    motivo_prioridade: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    nota_medica: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

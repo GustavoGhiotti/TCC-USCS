@@ -61,14 +61,6 @@ function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
   const [humor, setHumor]       = useState<RelatoDiario['humor']>('normal');
   const [sintomas, setSintomas] = useState<string[]>([]);
   const [descricao, setDescricao] = useState('');
-  const [sinaisVitais, setSinaisVitais] = useState({
-    pressaoSistolica: '',
-    pressaoDiastolica: '',
-    frequenciaCardiaca: '',
-    saturacaoOxigenio: '',
-    pesoKg: '',
-    temperaturaC: '',
-  });
   const [saving, setSaving]     = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -86,16 +78,6 @@ function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
         humor,
         sintomas,
         descricao,
-        sinaisVitais: Object.values(sinaisVitais).some(Boolean)
-          ? {
-              pressaoSistolica: sinaisVitais.pressaoSistolica ? Number(sinaisVitais.pressaoSistolica) : undefined,
-              pressaoDiastolica: sinaisVitais.pressaoDiastolica ? Number(sinaisVitais.pressaoDiastolica) : undefined,
-              frequenciaCardiaca: sinaisVitais.frequenciaCardiaca ? Number(sinaisVitais.frequenciaCardiaca) : undefined,
-              saturacaoOxigenio: sinaisVitais.saturacaoOxigenio ? Number(sinaisVitais.saturacaoOxigenio) : undefined,
-              pesoKg: sinaisVitais.pesoKg ? Number(sinaisVitais.pesoKg) : undefined,
-              temperaturaC: sinaisVitais.temperaturaC ? Number(sinaisVitais.temperaturaC) : undefined,
-            }
-          : undefined,
       });
     } catch {
       setFormError('Erro ao salvar relato. Tente novamente.');
@@ -184,37 +166,6 @@ function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
           placeholder="Descreva como foi o seu dia…"
           className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-500 transition-colors"
         />
-      </div>
-
-      {/* Ações */}
-      <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-        <p className="text-sm font-medium text-slate-700 mb-3">Sinais vitais <span className="text-slate-400 font-normal">(opcional)</span></p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="relato-pa-sis" className="block text-xs font-medium text-slate-600 mb-1">PA sistólica (mmHg)</label>
-            <input id="relato-pa-sis" type="number" min={50} max={250} value={sinaisVitais.pressaoSistolica} onChange={e => setSinaisVitais(prev => ({ ...prev, pressaoSistolica: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white" placeholder="ex: 120" />
-          </div>
-          <div>
-            <label htmlFor="relato-pa-dia" className="block text-xs font-medium text-slate-600 mb-1">PA diastólica (mmHg)</label>
-            <input id="relato-pa-dia" type="number" min={30} max={150} value={sinaisVitais.pressaoDiastolica} onChange={e => setSinaisVitais(prev => ({ ...prev, pressaoDiastolica: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white" placeholder="ex: 80" />
-          </div>
-          <div>
-            <label htmlFor="relato-fc" className="block text-xs font-medium text-slate-600 mb-1">Frequência cardíaca (bpm)</label>
-            <input id="relato-fc" type="number" min={30} max={220} value={sinaisVitais.frequenciaCardiaca} onChange={e => setSinaisVitais(prev => ({ ...prev, frequenciaCardiaca: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white" placeholder="ex: 80" />
-          </div>
-          <div>
-            <label htmlFor="relato-o2" className="block text-xs font-medium text-slate-600 mb-1">Oxigenação (%)</label>
-            <input id="relato-o2" type="number" min={70} max={100} value={sinaisVitais.saturacaoOxigenio} onChange={e => setSinaisVitais(prev => ({ ...prev, saturacaoOxigenio: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white" placeholder="ex: 98" />
-          </div>
-          <div>
-            <label htmlFor="relato-peso" className="block text-xs font-medium text-slate-600 mb-1">Peso (kg)</label>
-            <input id="relato-peso" type="number" min={30} max={250} step="0.1" value={sinaisVitais.pesoKg} onChange={e => setSinaisVitais(prev => ({ ...prev, pesoKg: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white" placeholder="ex: 68.5" />
-          </div>
-          <div>
-            <label htmlFor="relato-temp" className="block text-xs font-medium text-slate-600 mb-1">Temperatura (°C)</label>
-            <input id="relato-temp" type="number" min={34} max={42} step="0.1" value={sinaisVitais.temperaturaC} onChange={e => setSinaisVitais(prev => ({ ...prev, temperaturaC: e.target.value }))} className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white" placeholder="ex: 36.5" />
-          </div>
-        </div>
       </div>
 
       <div className="flex justify-end gap-3">

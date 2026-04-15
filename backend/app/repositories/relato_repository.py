@@ -38,12 +38,6 @@ class RelatoRepository:
         humor: str,
         sintomas_json: str,
         descricao: str | None,
-        pressao_sistolica: int | None,
-        pressao_diastolica: int | None,
-        frequencia_cardiaca: int | None,
-        saturacao_oxigenio: int | None,
-        peso_kg: float | None,
-        temperatura_c: float | None,
     ) -> RelatoDiario:
         relato = RelatoDiario(
             gestante_id=gestante_id,
@@ -51,12 +45,6 @@ class RelatoRepository:
             humor=humor,
             sintomas_json=sintomas_json,
             descricao=descricao,
-            pressao_sistolica=pressao_sistolica,
-            pressao_diastolica=pressao_diastolica,
-            frequencia_cardiaca=frequencia_cardiaca,
-            saturacao_oxigenio=saturacao_oxigenio,
-            peso_kg=peso_kg,
-            temperatura_c=temperatura_c,
         )
         self.db.add(relato)
         self.db.flush()

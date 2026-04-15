@@ -2,23 +2,28 @@
 import { useParams, useSearchParams } from 'react-router-dom';
 import { DoctorLayout } from '../../components/layout/DoctorLayout';
 import { PatientHeader } from '../../components/doctor/PatientHeader';
-import { VitalsTrendCard } from '../../components/doctor/VitalsTrendCard';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs';
 import { PageSpinner, Spinner } from '../../components/ui/Spinner';
 import { Badge } from '../../components/ui/Badge';
 import {
-  type Patient, type DailyReport, type Medication,
+  type Patient, type DailyReport, type Medication, type PrenatalProfile,
   type MedicalRecord, type AssistantSummary, type TimelineEvent,
 } from '../../types/doctor';
 import {
   addMedication,
   addMedicalRecord,
   approvePatientSummary,
+  deleteMedicalRecord,
+  deleteMedication,
   fetchPatientDetailsBundle,
   fetchPatientSummaries,
   generatePatientSummary,
+  updateDailyReport,
+  updateMedicalRecord,
+  updateMedication,
+  updatePrenatalProfile,
   type ReviewedSummary,
 } from '../../services/doctorApi';
 import { formatDate, formatTime, relativeDate } from '../../lib/utils';
@@ -38,11 +43,6 @@ function TimelineIcon({ type, hasFlag }: { type: TimelineEvent['type']; hasFlag:
       {type === 'report' && (
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
-        </svg>
-      )}
-      {type === 'vitals' && (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
         </svg>
       )}
       {type === 'appointment' && (
@@ -226,24 +226,41 @@ function DoctorSummaryDetailModal({
 
 // Aba: Análise
 function AnalysisTab({
-  patient,
   summary,
   timeline,
+  reports,
   summaryLoading,
 }: {
-  patient: Patient;
   summary?: AssistantSummary;
   timeline: TimelineEvent[];
+  reports: DailyReport[];
   summaryLoading: boolean;
 }) {
-  const vh = patient.vitalsHistory;
+  const symptomCount = new Map<string, number>();
+  const moodCount = new Map<string, number>();
+
+  reports.forEach((report) => {
+    moodCount.set(report.mood, (moodCount.get(report.mood) ?? 0) + 1);
+    report.symptoms.forEach((symptom) => {
+      symptomCount.set(symptom, (symptomCount.get(symptom) ?? 0) + 1);
+    });
+  });
+
+  const recurringSymptoms = [...symptomCount.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1]);
+  const priorityReports = reports
+    .filter((report) => report.highlightForConsultation || REPORT_PRIORITY_META[report.clinicalPriority].order >= 3)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const topMood = [...moodCount.entries()].sort((a, b) => b[1] - a[1])[0];
+  const reportLookup = new Map(reports.map((report) => [report.id, report] as const));
+  const reportWindowLabel = reports.length > 0
+    ? `${formatDate(reports[reports.length - 1].date, { day: 'numeric', month: 'short' })} a ${formatDate(reports[0].date, { day: 'numeric', month: 'short' })}`
+    : 'Sem periodo consolidado';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Coluna esquerda (resumo + timeline) */}
       <div className="lg:col-span-2 flex flex-col gap-6">
-
-        {/* Resumo do assistente */}
         <section aria-label="Resumo do assistente de dados" className="bg-slate-50 border border-slate-200 rounded-xl p-5">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div className="flex items-center gap-2">
@@ -267,6 +284,29 @@ function AnalysisTab({
             <>
               <p className="text-sm text-slate-700 leading-relaxed mb-4">{summary.summaryText}</p>
 
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Relatos no periodo</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-800">{reports.length}</p>
+                  <p className="text-xs text-slate-500">{reportWindowLabel}</p>
+                </div>
+                <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Sintomas recorrentes</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-800">{recurringSymptoms.length}</p>
+                  <p className="text-xs text-slate-500">Aparecem em 2 ou mais relatos</p>
+                </div>
+                <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Eventos priorizados</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-800">{priorityReports.length}</p>
+                  <p className="text-xs text-slate-500">Destaques para revisao clinica</p>
+                </div>
+                <div className="rounded-xl bg-white px-4 py-3 ring-1 ring-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Humor mais frequente</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-800">{topMood ? (MOOD_MAP[topMood[0]]?.label ?? topMood[0]) : 'Sem dado'}</p>
+                  <p className="text-xs text-slate-500">{topMood ? `${topMood[1]} registro(s)` : 'Nenhum relato ainda'}</p>
+                </div>
+              </div>
+
               {summary.changesDetected.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
@@ -285,7 +325,37 @@ function AnalysisTab({
                 </div>
               )}
 
-              {/* Disclaimer obrigatório */}
+              {recurringSymptoms.length > 0 && (
+                <section className="mt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Padrões recorrentes
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {recurringSymptoms.slice(0, 6).map(([symptom, count]) => (
+                      <div key={symptom} className="rounded-lg bg-white px-3 py-3 ring-1 ring-slate-200">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-medium text-slate-700">{symptom}</span>
+                          <Badge variant={count >= 3 ? 'warning' : 'neutral'}>{count}x</Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">Apareceu em {count} relato(s) recentes.</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {priorityReports[0] && (
+                <section className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Ponto principal para a consulta</p>
+                  <p className="mt-1 text-sm font-medium text-amber-900">
+                    {priorityReports[0].priorityReason || priorityReports[0].description || 'Relato priorizado mais recente.'}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-800">
+                    {formatDate(priorityReports[0].date, { day: 'numeric', month: 'long' })} · prioridade {REPORT_PRIORITY_META[priorityReports[0].clinicalPriority].label.toLowerCase()}
+                  </p>
+                </section>
+              )}
+
               <p className="text-xs text-slate-400 border-t border-slate-200 mt-4 pt-3">
                 Este resumo é gerado automaticamente com base nos dados registrados. <strong>Não substitui avaliação clínica nem emite diagnóstico.</strong>
               </p>
@@ -296,7 +366,6 @@ function AnalysisTab({
 
         </section>
 
-        {/* Timeline de eventos */}
         <section aria-label="Timeline de eventos">
           <h3 className="text-sm font-semibold text-slate-700 mb-3">Timeline de eventos</h3>
           {timeline.length === 0 ? (
@@ -305,13 +374,21 @@ function AnalysisTab({
             <ol className="relative flex flex-col gap-0">
               {timeline.map((event, idx) => (
                 <li key={event.id} className="flex gap-4 pb-6 relative">
-                  {/* Linha vertical */}
                   {idx < timeline.length - 1 && (
                     <span className="absolute left-4 top-8 bottom-0 w-px bg-slate-200" aria-hidden="true" />
                   )}
                   <TimelineIcon type={event.type} hasFlag={event.hasFlag} />
                   <div className="flex-1 pt-1 min-w-0">
                     <p className="text-sm text-slate-700 font-medium">{event.description}</p>
+                    {event.type === 'report' ? (() => {
+                      const report = reportLookup.get(event.id.replace('t-', ''));
+                      if (!report) return null;
+                      return (
+                        <p className="mt-1 text-xs text-slate-500">
+                          {report.symptoms.length > 0 ? `${report.symptoms.length} sintoma(s) associado(s)` : 'Sem sintomas adicionais'} · prioridade {REPORT_PRIORITY_META[report.clinicalPriority].label.toLowerCase()}
+                        </p>
+                      );
+                    })() : null}
                     <time
                       dateTime={event.date}
                       className="text-xs text-slate-400 mt-0.5 block"
@@ -326,48 +403,188 @@ function AnalysisTab({
         </section>
       </div>
 
-      {/* Coluna direita (sinais vitais - mini gráficos) */}
-      <aside aria-label="Tendências de sinais vitais (últimos 7 dias)">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">
-          Sinais vitais · últimos 7 dias
-        </h3>
-        <div className="flex flex-col gap-3">
-          <VitalsTrendCard
-            label="Pressão sistólica"
-            unit="mmHg"
-            currentValue={patient.lastVitals?.bloodPressureSystolic ?? '—'}
-            values={vh.systolic}
-          />
-          <VitalsTrendCard
-            label="Pressão diastólica"
-            unit="mmHg"
-            currentValue={patient.lastVitals?.bloodPressureDiastolic ?? '—'}
-            values={vh.diastolic}
-          />
-          <VitalsTrendCard
-            label="Frequência cardíaca"
-            unit="bpm"
-            currentValue={patient.lastVitals?.heartRate ?? '—'}
-            values={vh.heartRate}
-          />
-          <VitalsTrendCard
-            label="Oxigenação"
-            unit="%"
-            currentValue={patient.lastVitals?.oxygenSaturation ?? '—'}
-            values={vh.oxygenSaturation}
-            inverseScale
-          />
-          <VitalsTrendCard
-            label="Peso"
-            unit="kg"
-            currentValue={patient.lastVitals?.weight?.toFixed(1) ?? '—'}
-            values={vh.weight}
-          />
-        </div>
-      </aside>
+      <div className="flex flex-col gap-6">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-card" aria-label="Recorrencia de sintomas">
+          <h3 className="text-sm font-semibold text-slate-800">Recorrências do período</h3>
+          <p className="mt-1 text-sm text-slate-500">Contagem rápida para leitura geral das variações mais repetidas.</p>
+          {recurringSymptoms.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-400">Ainda não há recorrências claras nos relatos recentes.</p>
+          ) : (
+            <ul className="mt-4 space-y-2">
+              {recurringSymptoms.map(([symptom, count]) => (
+                <li key={symptom} className="rounded-lg bg-slate-50 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-slate-700">{symptom}</span>
+                    <span className="text-xs font-semibold text-slate-500">{count} ocorrência(s)</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-slate-200">
+                    <div
+                      className="h-2 rounded-full bg-brand-500"
+                      style={{ width: `${Math.min(100, (count / Math.max(reports.length, 1)) * 100)}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-card" aria-label="Eventos clinicos relevantes">
+          <h3 className="text-sm font-semibold text-slate-800">Eventos para revisão</h3>
+          <p className="mt-1 text-sm text-slate-500">Relatos já marcados com maior relevância clínica.</p>
+          {priorityReports.length === 0 ? (
+            <p className="mt-4 text-sm text-slate-400">Nenhum evento priorizado até o momento.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {priorityReports.slice(0, 4).map((report) => (
+                <li key={report.id} className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      {REPORT_PRIORITY_META[report.clinicalPriority].label}
+                    </span>
+                    <span className="text-xs text-amber-700">{formatDate(report.date, { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                  <p className="mt-2 text-sm text-amber-900">
+                    {report.priorityReason || report.description || 'Relato priorizado sem detalhe adicional.'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
 
     </div>
   );
+}
+
+const CHRONIC_CONDITION_OPTIONS = [
+  'Hipertensao cronica',
+  'Diabetes pre-gestacional',
+  'Diabetes gestacional',
+  'Doenca tireoidiana',
+  'Doenca renal',
+  'Cardiopatia',
+  'Asma ou doenca respiratoria',
+  'Epilepsia',
+  'Trombofilia',
+  'Doenca autoimune',
+  'Obesidade',
+  'Infeccoes de relevancia clinica',
+] as const;
+
+const PREVIOUS_COMPLICATION_OPTIONS = [
+  'Pre-eclampsia ou eclampsia previa',
+  'Parto prematuro previo',
+  'Abortamento de repeticao',
+  'Hemorragia obstetrica',
+  'Restricao de crescimento fetal',
+  'Natimorto ou obito neonatal',
+  'Cesarea previa',
+  'Gestacao multipla previa',
+] as const;
+
+const FAMILY_HISTORY_OPTIONS = [
+  'Hipertensao arterial',
+  'Diabetes mellitus',
+  'Gemelaridade',
+  'Trombose ou trombofilia',
+  'Malformacoes congenitas',
+  'Doenca cardiovascular precoce',
+] as const;
+
+const DEFAULT_PRENATAL_PROFILE: PrenatalProfile = {
+  riskClassification: 'habitual',
+  chronicConditions: [],
+  previousPregnancyComplications: [],
+  familyHistory: [],
+  allergies: '',
+  continuousMedications: '',
+  surgeries: '',
+  obstetricHistory: '',
+  mentalHealthNotes: '',
+  socialContext: '',
+  additionalNotes: '',
+};
+
+type ConsultationStructuredFields = {
+  freeActions: string;
+  mainComplaints: string;
+  bloodPressure: string;
+  weight: string;
+  uterineHeight: string;
+  fetalHeartRate: string;
+  fetalMovement: string;
+  edema: string;
+  examsReviewed: string;
+  guidance: string;
+  referrals: string;
+  warningSigns: string;
+  additionalObservations: string;
+};
+
+const CONSULTATION_ACTION_LABELS: Array<{ key: Exclude<keyof ConsultationStructuredFields, 'freeActions'>; label: string }> = [
+  { key: 'mainComplaints', label: 'Queixas principais' },
+  { key: 'bloodPressure', label: 'PA' },
+  { key: 'weight', label: 'Peso' },
+  { key: 'uterineHeight', label: 'Altura uterina' },
+  { key: 'fetalHeartRate', label: 'BCF' },
+  { key: 'fetalMovement', label: 'Movimentação fetal' },
+  { key: 'edema', label: 'Edema' },
+  { key: 'examsReviewed', label: 'Exames revisados' },
+  { key: 'guidance', label: 'Orientações' },
+  { key: 'referrals', label: 'Encaminhamentos' },
+  { key: 'warningSigns', label: 'Sinais de alerta' },
+  { key: 'additionalObservations', label: 'Observações adicionais' },
+];
+
+function emptyConsultationStructuredFields(): ConsultationStructuredFields {
+  return {
+    freeActions: '',
+    mainComplaints: '',
+    bloodPressure: '',
+    weight: '',
+    uterineHeight: '',
+    fetalHeartRate: '',
+    fetalMovement: '',
+    edema: '',
+    examsReviewed: '',
+    guidance: '',
+    referrals: '',
+    warningSigns: '',
+    additionalObservations: '',
+  };
+}
+
+function parseConsultationActions(actions: string[]): ConsultationStructuredFields {
+  const parsed = emptyConsultationStructuredFields();
+  const freeLines: string[] = [];
+
+  actions.forEach((action) => {
+    const matched = CONSULTATION_ACTION_LABELS.find(({ label }) => action.startsWith(`${label}: `));
+    if (matched) {
+      parsed[matched.key] = action.slice(matched.label.length + 2);
+    } else if (action.trim()) {
+      freeLines.push(action);
+    }
+  });
+
+  parsed.freeActions = freeLines.join('\n');
+  return parsed;
+}
+
+function buildConsultationActions(fields: ConsultationStructuredFields): string[] {
+  const actions = fields.freeActions
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  CONSULTATION_ACTION_LABELS.forEach(({ key, label }) => {
+    const value = fields[key].trim();
+    if (value) actions.push(`${label}: ${value}`);
+  });
+
+  return actions;
 }
 
 type DoctorSummaryFilter = 'todos' | 'diario' | 'semanal';
@@ -630,18 +847,159 @@ const MOOD_MAP: Record<string, { label: string; emoji: string }> = {
   ansioso: { label: 'Ansioso',  emoji: 'ðŸ˜°' },
 };
 
-function ReportsTab({ reports }: { reports: DailyReport[] }) {
+const REPORT_PRIORITY_META: Record<DailyReport['clinicalPriority'], { label: string; card: string; badge: 'danger' | 'warning' | 'success' | 'neutral'; order: number }> = {
+  critica: { label: 'Critica', card: 'border-red-200 bg-red-50/50', badge: 'danger', order: 4 },
+  alta: { label: 'Alta', card: 'border-amber-200 bg-amber-50/50', badge: 'warning', order: 3 },
+  normal: { label: 'Normal', card: 'border-slate-100 bg-white', badge: 'neutral', order: 2 },
+  baixa: { label: 'Baixa', card: 'border-emerald-200 bg-emerald-50/40', badge: 'success', order: 1 },
+};
+
+function ReportsTab({
+  reports,
+  onSuccess,
+  onReportsChange,
+}: {
+  reports: DailyReport[];
+  onSuccess: (msg: string) => void;
+  onReportsChange: (reports: DailyReport[]) => void;
+}) {
   const [symptomFilter, setSymptomFilter] = useState('');
+  const [localReports, setLocalReports] = useState(reports);
+  const [selectedReport, setSelectedReport] = useState<DailyReport | null>(null);
+  const [isEditingReport, setIsEditingReport] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
+  const [reportForm, setReportForm] = useState({
+    clinicalPriority: 'normal' as DailyReport['clinicalPriority'],
+    highlightForConsultation: false,
+    priorityReason: '',
+    doctorNote: '',
+  });
+
+  useEffect(() => {
+    setLocalReports(reports);
+  }, [reports]);
+
+  function sortReports(items: DailyReport[]) {
+    return [...items].sort((a, b) => {
+      const priorityDelta = REPORT_PRIORITY_META[b.clinicalPriority].order - REPORT_PRIORITY_META[a.clinicalPriority].order;
+      if (priorityDelta !== 0) return priorityDelta;
+      if (a.highlightForConsultation !== b.highlightForConsultation) return a.highlightForConsultation ? -1 : 1;
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+  }
+
+  function openReportModal(report: DailyReport, editMode = false) {
+    setSelectedReport(report);
+    setIsEditingReport(editMode);
+    setReportForm({
+      clinicalPriority: report.clinicalPriority,
+      highlightForConsultation: report.highlightForConsultation,
+      priorityReason: report.priorityReason ?? '',
+      doctorNote: report.doctorNote ?? '',
+    });
+  }
+
+  function closeReportModal() {
+    setSelectedReport(null);
+    setIsEditingReport(false);
+    setReportForm({
+      clinicalPriority: 'normal',
+      highlightForConsultation: false,
+      priorityReason: '',
+      doctorNote: '',
+    });
+  }
+
+  async function handleSaveReportReview(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedReport) return;
+    setSavingReport(true);
+    try {
+      const updated = await updateDailyReport(selectedReport.id, reportForm);
+      const nextReports = sortReports(localReports.map((report) => (report.id === selectedReport.id ? updated : report)));
+      setLocalReports(nextReports);
+      onReportsChange(nextReports);
+      setSelectedReport(updated);
+      setIsEditingReport(false);
+      onSuccess('Relato classificado para acompanhamento clinico.');
+    } finally {
+      setSavingReport(false);
+    }
+  }
 
   const filtered = symptomFilter
-    ? reports.filter(r =>
+    ? sortReports(localReports).filter(r =>
         r.symptoms.some(s => s.toLowerCase().includes(symptomFilter.toLowerCase())) ||
         r.description.toLowerCase().includes(symptomFilter.toLowerCase())
       )
-    : reports;
+    : sortReports(localReports);
+
+  const highlightedReports = filtered.filter((report) => report.highlightForConsultation || REPORT_PRIORITY_META[report.clinicalPriority].order >= 3);
+  const timelineReports = filtered.filter((report) => !highlightedReports.some((item) => item.id === report.id));
+
+  function renderReportCard(report: DailyReport) {
+    const mood = MOOD_MAP[report.mood] ?? { label: report.mood, emoji: '—' };
+    const priority = REPORT_PRIORITY_META[report.clinicalPriority];
+
+    return (
+      <li key={report.id}>
+        <button
+          type="button"
+          onClick={() => openReportModal(report)}
+          className={`w-full rounded-xl border px-4 py-4 text-left shadow-card transition-shadow hover:shadow-card-md ${priority.card}`}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <time dateTime={report.date} className="text-xs font-medium text-slate-500">
+                  {formatDate(report.date, { day: 'numeric', month: 'long', year: 'numeric' })}
+                </time>
+                <Badge variant={priority.badge}>{priority.label}</Badge>
+                {report.highlightForConsultation ? <Badge variant="warning">Destaque da consulta</Badge> : null}
+              </div>
+              <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-700">
+                {report.description || 'Relato sem descricao detalhada.'}
+              </p>
+              {report.priorityReason ? (
+                <p className="mt-2 line-clamp-1 text-xs text-slate-500">
+                  <strong>Motivo do destaque:</strong> {report.priorityReason}
+                </p>
+              ) : null}
+              {report.symptoms.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-1.5" role="list" aria-label="Sintomas">
+                  {report.symptoms.slice(0, 4).map((symptom, index) => (
+                    <Badge key={`${report.id}-symptom-${index}`} variant="warning">{symptom}</Badge>
+                  ))}
+                  {report.symptoms.length > 4 ? <Badge variant="neutral">+{report.symptoms.length - 4}</Badge> : null}
+                </div>
+              ) : null}
+            </div>
+            <span aria-label={`Humor: ${mood.label}`} className="text-lg leading-none" title={mood.label}>
+              {mood.emoji}
+            </span>
+          </div>
+        </button>
+      </li>
+    );
+  }
 
   return (
-    <div>
+    <div className="space-y-6">
+      <section aria-label="Guia para leitura dos relatos" className="rounded-xl border border-slate-100 bg-slate-50 p-5 shadow-card">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Triagem clinica dos relatos da gestante</h3>
+            <p className="mt-1 text-sm text-slate-600">
+              Use prioridade, motivo e nota medica para destacar acontecimentos importantes antes da consulta e construir um historico mais util para futuros relatórios assistidos por IA.
+            </p>
+          </div>
+          <div className="grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
+            <span className="rounded-lg bg-white px-3 py-2">Critica/Alta: aparecem primeiro na revisao.</span>
+            <span className="rounded-lg bg-white px-3 py-2">Destaque da consulta: fixa o relato entre os principais.</span>
+          </div>
+        </div>
+      </section>
+
       <div className="flex items-center gap-3 mb-5">
         <input
           type="search"
@@ -659,103 +1017,159 @@ function ReportsTab({ reports }: { reports: DailyReport[] }) {
       {filtered.length === 0 ? (
         <p className="text-center text-sm text-slate-400 py-12">Nenhum relato encontrado.</p>
       ) : (
-        <ol className="flex flex-col gap-3" aria-label="Lista de relatos">
-          {filtered.map(r => {
-            const m = MOOD_MAP[r.mood] ?? { label: r.mood, emoji: '—' };
-            return (
-              <li key={r.id} className="bg-white rounded-xl border border-slate-100 shadow-card p-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <time dateTime={r.date} className="text-xs font-medium text-slate-500">
-                    {formatDate(r.date, { day: 'numeric', month: 'long', year: 'numeric' })} · {formatTime(r.date)}
-                  </time>
-                  <span
-                    aria-label={`Humor: ${m.label}`}
-                    className="text-lg leading-none"
-                    title={m.label}
+        <div className="space-y-6">
+          {highlightedReports.length > 0 ? (
+            <section aria-label="Relatos priorizados para consulta">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-slate-700">Em destaque para consulta</h3>
+                <p className="text-sm text-slate-500">Relatos priorizados manualmente ou classificados com maior urgencia clínica.</p>
+              </div>
+              <ol className="grid gap-3 xl:grid-cols-2" aria-label="Relatos em destaque">
+                {highlightedReports.map(renderReportCard)}
+              </ol>
+            </section>
+          ) : null}
+
+          <section aria-label="Timeline de relatos">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-slate-700">Linha do tempo dos relatos</h3>
+              <p className="text-sm text-slate-500">Ordem ajustada por prioridade clínica e data do acontecimento.</p>
+            </div>
+            <ol className="flex flex-col gap-3" aria-label="Lista de relatos">
+              {(timelineReports.length > 0 ? timelineReports : highlightedReports).map(renderReportCard)}
+            </ol>
+          </section>
+        </div>
+      )}
+
+      <Modal
+        isOpen={Boolean(selectedReport)}
+        onClose={closeReportModal}
+        title={isEditingReport ? 'Editar avaliacao do relato' : 'Detalhes do relato'}
+        maxWidth="max-w-3xl"
+      >
+        {selectedReport ? (
+          isEditingReport ? (
+            <form onSubmit={handleSaveReportReview} className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="report-priority" className="mb-1 block text-xs font-medium text-slate-600">Prioridade clinica</label>
+                  <select
+                    id="report-priority"
+                    value={reportForm.clinicalPriority}
+                    onChange={(e) => setReportForm((prev) => ({ ...prev, clinicalPriority: e.target.value as DailyReport['clinicalPriority'] }))}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-600"
                   >
-                    {m.emoji}
-                  </span>
+                    <option value="baixa">Baixa</option>
+                    <option value="normal">Normal</option>
+                    <option value="alta">Alta</option>
+                    <option value="critica">Critica</option>
+                  </select>
                 </div>
-                <p className="text-sm text-slate-700 leading-relaxed mb-3">{r.description}</p>
-                {r.symptoms.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5" role="list" aria-label="Sintomas">
-                    {r.symptoms.map((s, i) => (
-                      <Badge key={i} variant="warning">{s}</Badge>
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={reportForm.highlightForConsultation}
+                    onChange={(e) => setReportForm((prev) => ({ ...prev, highlightForConsultation: e.target.checked }))}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600"
+                  />
+                  Destacar este relato para a consulta
+                </label>
+                <div className="sm:col-span-2">
+                  <label htmlFor="report-priority-reason" className="mb-1 block text-xs font-medium text-slate-600">Motivo clinico da prioridade</label>
+                  <textarea
+                    id="report-priority-reason"
+                    rows={3}
+                    value={reportForm.priorityReason}
+                    onChange={(e) => setReportForm((prev) => ({ ...prev, priorityReason: e.target.value }))}
+                    className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-600"
+                    placeholder="Ex.: cefaleia associada a edema e pico pressorico recente."
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label htmlFor="report-doctor-note" className="mb-1 block text-xs font-medium text-slate-600">Nota medica para acompanhamento e IA</label>
+                  <textarea
+                    id="report-doctor-note"
+                    rows={5}
+                    value={reportForm.doctorNote}
+                    onChange={(e) => setReportForm((prev) => ({ ...prev, doctorNote: e.target.value }))}
+                    className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-600"
+                    placeholder="Sintese clinica, perguntas para a consulta, correlacao com condutas ou pontos que valem entrar em relatórios futuros."
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                <button type="submit" disabled={savingReport} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+                  {savingReport ? 'Salvando...' : 'Salvar avaliacao'}
+                </button>
+                <button type="button" onClick={() => openReportModal(selectedReport, false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {formatDate(selectedReport.date, { day: 'numeric', month: 'long', year: 'numeric' })} às {formatTime(selectedReport.date)}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Humor informado pela paciente: {MOOD_MAP[selectedReport.mood]?.label ?? selectedReport.mood}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={REPORT_PRIORITY_META[selectedReport.clinicalPriority].badge}>
+                    {REPORT_PRIORITY_META[selectedReport.clinicalPriority].label}
+                  </Badge>
+                  {selectedReport.highlightForConsultation ? <Badge variant="warning">Destaque da consulta</Badge> : null}
+                </div>
+              </div>
+
+              <section>
+                <h4 className="mb-2 text-sm font-semibold text-slate-800">Relato registrado</h4>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  {selectedReport.description || 'A paciente nao adicionou uma descricao livre neste relato.'}
+                </p>
+              </section>
+
+              {selectedReport.symptoms.length > 0 ? (
+                <section>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-800">Sintomas associados</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedReport.symptoms.map((symptom, index) => (
+                      <Badge key={`${selectedReport.id}-modal-symptom-${index}`} variant="warning">{symptom}</Badge>
                     ))}
                   </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      )}
-    </div>
-  );
-}
+                </section>
+              ) : null}
 
-// Aba: Sinais Vitais
-interface VitalsTabProps {
-  patient: Patient;
-}
-function VitalsTab({ patient }: VitalsTabProps) {
-  const rows = patient.vitalsHistory.dates.map((date, index) => ({
-    date,
-    systolic: patient.vitalsHistory.systolic[index],
-    diastolic: patient.vitalsHistory.diastolic[index],
-    heartRate: patient.vitalsHistory.heartRate[index],
-    oxygenSaturation: patient.vitalsHistory.oxygenSaturation[index],
-    weight: patient.vitalsHistory.weight[index],
-  })).reverse();
+              {(selectedReport.priorityReason || selectedReport.doctorNote) ? (
+                <section className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Motivo da prioridade</p>
+                    <p className="mt-1 text-sm text-slate-700">{selectedReport.priorityReason || 'Nao informado.'}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Nota medica</p>
+                    <p className="mt-1 text-sm text-slate-700">{selectedReport.doctorNote || 'Nao informada.'}</p>
+                  </div>
+                </section>
+              ) : null}
 
-  return (
-    <div className="max-w-2xl">
-      <section aria-label="Resumo dos sinais vitais" className="bg-white rounded-xl border border-slate-100 shadow-card p-5 mb-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-3">Histórico enviado pela paciente</h3>
-        <p className="text-sm text-slate-500">
-          Esta aba mostra apenas os sinais vitais registrados nos relatos da paciente. Quando o médico aferir sinais vitais durante a consulta, o registro deve ser feito no prontuário.
-        </p>
-        {patient.lastVitals && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge variant="info">PA {patient.lastVitals.bloodPressureSystolic}/{patient.lastVitals.bloodPressureDiastolic}</Badge>
-            <Badge variant="info">FC {patient.lastVitals.heartRate} bpm</Badge>
-            <Badge variant="info">O2 {patient.lastVitals.oxygenSaturation}%</Badge>
-            {patient.lastVitals.weight ? <Badge variant="neutral">Peso {patient.lastVitals.weight.toFixed(1)} kg</Badge> : null}
-          </div>
-        )}
-      </section>
+              <div className="rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3 text-xs text-brand-800">
+                Esta avaliacao fica vinculada ao relato para organizar a consulta e tambem pode servir como contexto estruturado para futuras analises e relatórios com IA.
+              </div>
 
-      <section aria-label="Histórico de sinais vitais">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Histórico (últimos 7 dias)</h3>
-        <p className="text-xs text-slate-400 mb-3">Dados do gráfico de tendências na aba Análise.</p>
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                <th scope="col" className="px-4 py-2.5 text-left font-semibold text-slate-500">Data</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-semibold text-slate-500">PA</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-semibold text-slate-500">FC</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-semibold text-slate-500">O₂</th>
-                <th scope="col" className="px-4 py-2.5 text-right font-semibold text-slate-500">Peso</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">Nenhum sinal vital registrado pela paciente.</td>
-                </tr>
-              ) : rows.map((row) => (
-                <tr key={row.date} className="hover:bg-slate-50">
-                  <td className="px-4 py-2.5 text-slate-600">{formatDate(row.date, { day: 'numeric', month: 'short' })}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-700 font-medium">{row.systolic && row.diastolic ? `${row.systolic} / ${row.diastolic}` : '—'}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">{row.heartRate || '—'}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">{row.oxygenSaturation || '—'}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-600">{row.weight ? row.weight.toFixed(1) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                <button type="button" onClick={() => openReportModal(selectedReport, true)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Editar avaliacao
+                </button>
+              </div>
+            </div>
+          )
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -769,173 +1183,694 @@ interface ProntuarioTabProps {
 function ProntuarioTab({ patientId, records, onSuccess }: ProntuarioTabProps) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [busyRecordId, setBusyRecordId] = useState<string | null>(null);
   const [localRecords, setLocalRecords] = useState(records);
-  const [form, setForm] = useState({
+  const [selectedRecord, setSelectedRecord] = useState<MedicalRecord | null>(null);
+  const [isCreateRecordModalOpen, setIsCreateRecordModalOpen] = useState(false);
+  const [isRecordModalEditing, setIsRecordModalEditing] = useState(false);
+  const [createRecordForm, setCreateRecordForm] = useState({
     summary: '',
-    actions: '',
     nextAppointment: '',
-    bloodPressureSystolic: '',
-    bloodPressureDiastolic: '',
-    heartRate: '',
-    oxygenSaturation: '',
-    weight: '',
-    temperature: '',
   });
+  const [createRecordStructuredForm, setCreateRecordStructuredForm] = useState<ConsultationStructuredFields>(emptyConsultationStructuredFields());
+  const [recordModalForm, setRecordModalForm] = useState({
+    summary: '',
+    nextAppointment: '',
+  });
+  const [recordModalStructuredForm, setRecordModalStructuredForm] = useState<ConsultationStructuredFields>(emptyConsultationStructuredFields());
 
   useEffect(() => { setLocalRecords(records); }, [records]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function closeRecordModal() {
+    setSelectedRecord(null);
+    setIsRecordModalEditing(false);
+    setRecordModalForm({ summary: '', nextAppointment: '' });
+    setRecordModalStructuredForm(emptyConsultationStructuredFields());
+  }
+
+  function closeCreateRecordModal() {
+    setIsCreateRecordModalOpen(false);
+    setCreateRecordForm({ summary: '', nextAppointment: '' });
+    setCreateRecordStructuredForm(emptyConsultationStructuredFields());
+  }
+
+  async function handleCreateRecord(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.summary.trim()) return;
+    if (!createRecordForm.summary.trim()) return;
     setSaving(true);
     try {
       const rec = await addMedicalRecord({
         patientId,
         date: new Date().toISOString(),
-        summary: form.summary,
-        actions: [
-          ...form.actions.split('\n').map(s => s.trim()).filter(Boolean),
-          [
-            form.bloodPressureSystolic && form.bloodPressureDiastolic ? `Sinais vitais aferidos: PA ${form.bloodPressureSystolic}/${form.bloodPressureDiastolic} mmHg` : '',
-            form.heartRate ? `FC ${form.heartRate} bpm` : '',
-            form.oxygenSaturation ? `O2 ${form.oxygenSaturation}%` : '',
-            form.weight ? `Peso ${form.weight} kg` : '',
-            form.temperature ? `Temperatura ${form.temperature} °C` : '',
-          ].filter(Boolean).join(' · '),
-        ].filter(Boolean),
-        nextAppointment: form.nextAppointment || undefined,
+        summary: createRecordForm.summary,
+        actions: buildConsultationActions(createRecordStructuredForm),
+        nextAppointment: createRecordForm.nextAppointment || undefined,
         doctorId: user?.id ?? 'doc1',
         doctorName: user?.nomeCompleto ?? 'Dr. Médico',
       });
       setLocalRecords(prev => [rec, ...prev]);
-      setForm({ summary: '', actions: '', nextAppointment: '', bloodPressureSystolic: '', bloodPressureDiastolic: '', heartRate: '', oxygenSaturation: '', weight: '', temperature: '' });
+      closeCreateRecordModal();
       onSuccess('Registro adicionado ao prontuário.');
     } finally {
       setSaving(false);
     }
   }
 
+  function openRecordModal(record: MedicalRecord, editMode = false) {
+    setSelectedRecord(record);
+    setIsRecordModalEditing(editMode);
+    const structured = parseConsultationActions(record.actions);
+    setRecordModalForm({
+      summary: record.summary,
+      nextAppointment: record.nextAppointment?.slice(0, 10) ?? '',
+    });
+    setRecordModalStructuredForm(structured);
+  }
+
+  async function handleSaveRecordEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedRecord || !recordModalForm.summary.trim()) return;
+    setBusyRecordId(selectedRecord.id);
+    try {
+      const updated = await updateMedicalRecord(selectedRecord.id, {
+        date: selectedRecord.date,
+        summary: recordModalForm.summary,
+        actions: buildConsultationActions(recordModalStructuredForm),
+        doctorId: selectedRecord.doctorId || (user?.id ?? 'doc1'),
+      });
+
+      const merged = { ...selectedRecord, ...updated, nextAppointment: recordModalForm.nextAppointment || undefined };
+      setLocalRecords((prev) => prev.map((record) => (record.id === selectedRecord.id ? merged : record)));
+      setSelectedRecord(merged);
+      setIsRecordModalEditing(false);
+      onSuccess('Registro do prontuário atualizado.');
+    } finally {
+      setBusyRecordId(null);
+    }
+  }
+
+  async function handleDeleteRecord(record: MedicalRecord) {
+    if (!window.confirm('Deseja remover este registro de atendimento?')) return;
+    setBusyRecordId(record.id);
+    try {
+      await deleteMedicalRecord(record.id);
+      setLocalRecords(prev => prev.filter((item) => item.id !== record.id));
+      if (selectedRecord?.id === record.id) closeRecordModal();
+      onSuccess('Registro removido do prontuário.');
+    } finally {
+      setBusyRecordId(null);
+    }
+  }
+
   const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent';
   const labelCls = 'block text-xs font-medium text-slate-600 mb-1';
+  const textareaCls = `${inputCls} resize-none`;
 
   return (
-    <div className="max-w-2xl">
-      {/* Form */}
-      <section aria-label="Adicionar registro ao prontuário" className="bg-white rounded-xl border border-slate-100 shadow-card p-5 mb-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">Novo registro de atendimento</h3>
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="flex flex-col gap-4 mb-4">
-            <div>
-              <label htmlFor="pr-summary" className={labelCls}>Resumo do atendimento *</label>
-              <textarea
-                id="pr-summary"
-                required
-                rows={4}
-                value={form.summary}
-                onChange={e => setForm(p => ({ ...p, summary: e.target.value }))}
-                placeholder="Descreva o que ocorreu no atendimento..."
-                className={`${inputCls} resize-none`}
-              />
-            </div>
-            <div>
-              <label htmlFor="pr-actions" className={labelCls}>Ações realizadas (uma por linha)</label>
-              <textarea
-                id="pr-actions"
-                rows={3}
-                value={form.actions}
-                onChange={e => setForm(p => ({ ...p, actions: e.target.value }))}
-                placeholder={'Solicitado exame X\nOrientado sobre Y\nPrescrito Z'}
-                className={`${inputCls} resize-none`}
-              />
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-semibold text-slate-600 mb-3 uppercase tracking-wide">Sinais vitais da consulta</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="pr-sys" className={labelCls}>PA sistólica (mmHg)</label>
-                  <input id="pr-sys" type="number" min={50} max={250} value={form.bloodPressureSystolic} onChange={e => setForm(p => ({ ...p, bloodPressureSystolic: e.target.value }))} className={inputCls} placeholder="ex: 120" />
-                </div>
-                <div>
-                  <label htmlFor="pr-dia" className={labelCls}>PA diastólica (mmHg)</label>
-                  <input id="pr-dia" type="number" min={30} max={150} value={form.bloodPressureDiastolic} onChange={e => setForm(p => ({ ...p, bloodPressureDiastolic: e.target.value }))} className={inputCls} placeholder="ex: 80" />
-                </div>
-                <div>
-                  <label htmlFor="pr-hr" className={labelCls}>Frequência cardíaca (bpm)</label>
-                  <input id="pr-hr" type="number" min={30} max={220} value={form.heartRate} onChange={e => setForm(p => ({ ...p, heartRate: e.target.value }))} className={inputCls} placeholder="ex: 80" />
-                </div>
-                <div>
-                  <label htmlFor="pr-o2" className={labelCls}>Oxigenação (%)</label>
-                  <input id="pr-o2" type="number" min={70} max={100} value={form.oxygenSaturation} onChange={e => setForm(p => ({ ...p, oxygenSaturation: e.target.value }))} className={inputCls} placeholder="ex: 98" />
-                </div>
-                <div>
-                  <label htmlFor="pr-weight" className={labelCls}>Peso (kg)</label>
-                  <input id="pr-weight" type="number" min={30} max={250} step="0.1" value={form.weight} onChange={e => setForm(p => ({ ...p, weight: e.target.value }))} className={inputCls} placeholder="ex: 68.5" />
-                </div>
-                <div>
-                  <label htmlFor="pr-temp" className={labelCls}>Temperatura (°C)</label>
-                  <input id="pr-temp" type="number" min={34} max={42} step="0.1" value={form.temperature} onChange={e => setForm(p => ({ ...p, temperature: e.target.value }))} className={inputCls} placeholder="ex: 36.5" />
-                </div>
-              </div>
-            </div>
-            <div>
-              <label htmlFor="pr-next" className={labelCls}>Próxima consulta</label>
-              <input
-                id="pr-next"
-                type="date"
-                value={form.nextAppointment}
-                onChange={e => setForm(p => ({ ...p, nextAppointment: e.target.value }))}
-                className={inputCls}
-              />
-            </div>
+    <div className="space-y-6">
+      <section aria-label="Orientações para registro da consulta" className="rounded-xl border border-slate-100 bg-slate-50 p-5 shadow-card">
+        <h3 className="text-sm font-semibold text-slate-800">O que vale registrar em cada consulta pré-natal</h3>
+        <div className="mt-3 grid gap-3 lg:grid-cols-2">
+          <div className="rounded-lg bg-white px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Avaliação clínica</p>
+            <p className="mt-1 text-sm text-slate-600">Queixas atuais, bem-estar materno, sinais de alerta, sintomas novos, exames revisados e reclassificação de risco.</p>
           </div>
-          <button
-            type="submit"
-            disabled={saving || !form.summary.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-60 transition-colors"
-          >
-            {saving ? <Spinner size="sm" /> : null}
-            {saving ? 'Salvando...' : 'Salvar registro'}
-          </button>
-        </form>
+          <div className="rounded-lg bg-white px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Condições e condutas</p>
+            <p className="mt-1 text-sm text-slate-600">PA/IMC quando relevante, medicações em uso, orientações passadas, encaminhamentos, exames solicitados e plano para o retorno.</p>
+          </div>
+        </div>
       </section>
 
-      {/* Histórico */}
-      <section aria-label="Histórico de atendimentos">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Histórico de atendimentos</h3>
+      <section aria-label="Histórico de atendimentos" className="min-w-0">
+        <div className="mb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700">Histórico de atendimentos</h3>
+              <p className="text-sm text-slate-500">
+                {localRecords.length === 0 ? 'Nenhum registro disponível.' : `${localRecords.length} registro(s) clínico(s) neste prontuário.`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreateRecordModalOpen(true)}
+              className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+            >
+              Novo registro
+            </button>
+          </div>
+        </div>
         {localRecords.length === 0 ? (
-          <p className="text-sm text-slate-400 py-8 text-center">Nenhum atendimento registrado.</p>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-400 shadow-card">
+            Nenhum atendimento registrado.
+          </div>
         ) : (
-          <ol className="flex flex-col gap-3">
+          <ol className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
             {localRecords.map(rec => (
-              <li key={rec.id} className="bg-white rounded-xl border border-slate-100 shadow-card p-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
+              <li key={rec.id}>
+                <button
+                  type="button"
+                  onClick={() => openRecordModal(rec)}
+                  className="w-full rounded-xl border border-slate-100 bg-white p-4 text-left shadow-card transition-shadow hover:shadow-card-md"
+                >
+                <div className="mb-2 flex items-start justify-between gap-3">
                   <time dateTime={rec.date} className="text-xs font-medium text-slate-500">
                     {formatDate(rec.date, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </time>
                   <span className="text-xs text-slate-400">{rec.doctorName}</span>
                 </div>
-                <p className="text-sm text-slate-700 mb-3">{rec.summary}</p>
+                <p className="mb-3 text-sm leading-relaxed text-slate-700">{rec.summary}</p>
                 {rec.actions.length > 0 && (
-                  <ul className="flex flex-col gap-1 mb-3" aria-label="Ações realizadas">
+                  <ul className="mb-3 flex flex-col gap-1" aria-label="Ações realizadas">
                     {rec.actions.map((a, i) => (
                       <li key={i} className="flex items-start gap-1.5 text-xs text-slate-600">
-                        <span className="text-brand-500 mt-0.5 flex-shrink-0">✓</span>
+                        <span className="mt-0.5 flex-shrink-0 text-brand-500">✓</span>
                         {a}
                       </li>
                     ))}
                   </ul>
                 )}
                 {rec.nextAppointment && (
-                  <p className="text-xs text-brand-700 bg-brand-50 px-2.5 py-1.5 rounded-lg inline-block">
+                  <p className="inline-block rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs text-brand-700">
                     Próxima consulta: {formatDate(rec.nextAppointment, { day: 'numeric', month: 'long', year: 'numeric' })}
                   </p>
                 )}
+                </button>
               </li>
             ))}
           </ol>
         )}
       </section>
+
+      <Modal
+        isOpen={Boolean(selectedRecord)}
+        onClose={closeRecordModal}
+        title={isRecordModalEditing ? 'Editar registro de atendimento' : 'Detalhes do atendimento'}
+        maxWidth="max-w-3xl"
+      >
+        {selectedRecord && (
+          isRecordModalEditing ? (
+            <form onSubmit={handleSaveRecordEdit} className="space-y-4">
+              <div>
+                <label htmlFor="record-modal-summary" className={labelCls}>Resumo do atendimento *</label>
+                <textarea id="record-modal-summary" rows={6} value={recordModalForm.summary} onChange={(e) => setRecordModalForm((prev) => ({ ...prev, summary: e.target.value }))} className={textareaCls} />
+              </div>
+              <div className="grid gap-4 border-t border-slate-100 pt-4 lg:grid-cols-2">
+                <div>
+                  <label htmlFor="record-modal-complaints" className={labelCls}>Queixas principais</label>
+                  <textarea id="record-modal-complaints" rows={3} value={recordModalStructuredForm.mainComplaints} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, mainComplaints: e.target.value }))} className={textareaCls} />
+                </div>
+                <div>
+                  <label htmlFor="record-modal-exams" className={labelCls}>Exames revisados</label>
+                  <textarea id="record-modal-exams" rows={3} value={recordModalStructuredForm.examsReviewed} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, examsReviewed: e.target.value }))} className={textareaCls} />
+                </div>
+                <div>
+                  <label htmlFor="record-modal-guidance" className={labelCls}>Orientações</label>
+                  <textarea id="record-modal-guidance" rows={3} value={recordModalStructuredForm.guidance} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, guidance: e.target.value }))} className={textareaCls} />
+                </div>
+                <div>
+                  <label htmlFor="record-modal-referrals" className={labelCls}>Encaminhamentos</label>
+                  <textarea id="record-modal-referrals" rows={3} value={recordModalStructuredForm.referrals} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, referrals: e.target.value }))} className={textareaCls} />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <label htmlFor="record-modal-pa" className={labelCls}>PA</label>
+                  <input id="record-modal-pa" type="text" value={recordModalStructuredForm.bloodPressure} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, bloodPressure: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="record-modal-weight" className={labelCls}>Peso</label>
+                  <input id="record-modal-weight" type="text" value={recordModalStructuredForm.weight} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, weight: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="record-modal-uterine-height" className={labelCls}>Altura uterina</label>
+                  <input id="record-modal-uterine-height" type="text" value={recordModalStructuredForm.uterineHeight} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, uterineHeight: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="record-modal-bcf" className={labelCls}>BCF</label>
+                  <input id="record-modal-bcf" type="text" value={recordModalStructuredForm.fetalHeartRate} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, fetalHeartRate: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="record-modal-movement" className={labelCls}>Movimentação fetal</label>
+                  <select id="record-modal-movement" value={recordModalStructuredForm.fetalMovement} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, fetalMovement: e.target.value }))} className={inputCls}>
+                    <option value="">Não informado</option>
+                    <option value="Presente">Presente</option>
+                    <option value="Reduzida">Reduzida</option>
+                    <option value="Ausente">Ausente</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="record-modal-edema" className={labelCls}>Edema</label>
+                  <select id="record-modal-edema" value={recordModalStructuredForm.edema} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, edema: e.target.value }))} className={inputCls}>
+                    <option value="">Não informado</option>
+                    <option value="Ausente">Ausente</option>
+                    <option value="Leve">Leve</option>
+                    <option value="Moderado">Moderado</option>
+                    <option value="Importante">Importante</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label htmlFor="record-modal-warning" className={labelCls}>Sinais de alerta / intercorrências</label>
+                <textarea id="record-modal-warning" rows={3} value={recordModalStructuredForm.warningSigns} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, warningSigns: e.target.value }))} className={textareaCls} />
+              </div>
+              <div>
+                <label htmlFor="record-modal-actions" className={labelCls}>Condutas e ações livres</label>
+                <textarea id="record-modal-actions" rows={4} value={recordModalStructuredForm.freeActions} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, freeActions: e.target.value }))} className={textareaCls} />
+              </div>
+              <div>
+                <label htmlFor="record-modal-extra" className={labelCls}>Observações adicionais</label>
+                <textarea id="record-modal-extra" rows={3} value={recordModalStructuredForm.additionalObservations} onChange={(e) => setRecordModalStructuredForm((prev) => ({ ...prev, additionalObservations: e.target.value }))} className={textareaCls} />
+              </div>
+              <div>
+                <label htmlFor="record-modal-next" className={labelCls}>Próxima consulta</label>
+                <input id="record-modal-next" type="date" value={recordModalForm.nextAppointment} onChange={(e) => setRecordModalForm((prev) => ({ ...prev, nextAppointment: e.target.value }))} className={inputCls} />
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                <button type="submit" disabled={busyRecordId === selectedRecord.id} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+                  {busyRecordId === selectedRecord.id ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+                <button type="button" onClick={() => openRecordModal(selectedRecord, false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-5">
+              {(() => {
+                const structured = parseConsultationActions(selectedRecord.actions);
+                const visibleStructuredItems = CONSULTATION_ACTION_LABELS.filter(({ key }) => structured[key]);
+                return (
+                  <>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                    {formatDate(selectedRecord.date, { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">{selectedRecord.doctorName}</p>
+                </div>
+                {selectedRecord.nextAppointment && (
+                  <span className="rounded-lg bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
+                    Próxima consulta: {formatDate(selectedRecord.nextAppointment, { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-slate-800">Resumo do atendimento</h4>
+                <p className="text-sm leading-relaxed text-slate-700">{selectedRecord.summary}</p>
+              </div>
+              {visibleStructuredItems.length > 0 && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {visibleStructuredItems.map(({ key, label }) => (
+                    <div key={key} className="rounded-lg bg-slate-50 px-3 py-2">
+                      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+                      <p className="mt-1 text-sm text-slate-700">{structured[key]}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div>
+                <h4 className="mb-2 text-sm font-semibold text-slate-800">Condutas e ações livres</h4>
+                {structured.freeActions ? (
+                  <ul className="space-y-2">
+                    {structured.freeActions.split('\n').filter(Boolean).map((action, index) => (
+                      <li key={`${action}-${index}`} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">{action}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-400">Nenhuma conduta livre registrada.</p>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                <button type="button" onClick={() => openRecordModal(selectedRecord, true)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Editar
+                </button>
+                <button type="button" onClick={() => handleDeleteRecord(selectedRecord)} disabled={busyRecordId === selectedRecord.id} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60">
+                  {busyRecordId === selectedRecord.id ? 'Removendo...' : 'Remover'}
+                </button>
+              </div>
+                  </>
+                );
+              })()}
+            </div>
+          )
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={isCreateRecordModalOpen}
+        onClose={closeCreateRecordModal}
+        title="Novo registro de atendimento"
+        maxWidth="max-w-3xl"
+      >
+        <form onSubmit={handleCreateRecord} className="space-y-4">
+          <div>
+            <label htmlFor="pr-create-summary" className={labelCls}>Resumo do atendimento *</label>
+            <textarea id="pr-create-summary" rows={6} value={createRecordForm.summary} onChange={(e) => setCreateRecordForm((prev) => ({ ...prev, summary: e.target.value }))} className={textareaCls} placeholder="Descreva o que ocorreu no atendimento..." />
+          </div>
+          <div className="grid gap-4 border-t border-slate-100 pt-4 lg:grid-cols-2">
+            <div>
+              <label htmlFor="pr-create-complaints" className={labelCls}>Queixas principais</label>
+              <textarea id="pr-create-complaints" rows={3} value={createRecordStructuredForm.mainComplaints} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, mainComplaints: e.target.value }))} className={textareaCls} placeholder="cefaleia, sangramento, dor, náuseas..." />
+            </div>
+            <div>
+              <label htmlFor="pr-create-exams" className={labelCls}>Exames revisados</label>
+              <textarea id="pr-create-exams" rows={3} value={createRecordStructuredForm.examsReviewed} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, examsReviewed: e.target.value }))} className={textareaCls} placeholder="glicemia, urina, ultrassom, hemograma..." />
+            </div>
+            <div>
+              <label htmlFor="pr-create-guidance" className={labelCls}>Orientações</label>
+              <textarea id="pr-create-guidance" rows={3} value={createRecordStructuredForm.guidance} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, guidance: e.target.value }))} className={textareaCls} placeholder="orientado sobre sinais de alarme, alimentação..." />
+            </div>
+            <div>
+              <label htmlFor="pr-create-referrals" className={labelCls}>Encaminhamentos</label>
+              <textarea id="pr-create-referrals" rows={3} value={createRecordStructuredForm.referrals} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, referrals: e.target.value }))} className={textareaCls} placeholder="alto risco, psicologia, nutrição..." />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label htmlFor="pr-create-pa" className={labelCls}>PA</label>
+              <input id="pr-create-pa" type="text" value={createRecordStructuredForm.bloodPressure} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, bloodPressure: e.target.value }))} className={inputCls} placeholder="120x80 mmHg" />
+            </div>
+            <div>
+              <label htmlFor="pr-create-weight" className={labelCls}>Peso</label>
+              <input id="pr-create-weight" type="text" value={createRecordStructuredForm.weight} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, weight: e.target.value }))} className={inputCls} placeholder="68,4 kg" />
+            </div>
+            <div>
+              <label htmlFor="pr-create-uterine-height" className={labelCls}>Altura uterina</label>
+              <input id="pr-create-uterine-height" type="text" value={createRecordStructuredForm.uterineHeight} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, uterineHeight: e.target.value }))} className={inputCls} placeholder="31 cm" />
+            </div>
+            <div>
+              <label htmlFor="pr-create-bcf" className={labelCls}>BCF</label>
+              <input id="pr-create-bcf" type="text" value={createRecordStructuredForm.fetalHeartRate} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, fetalHeartRate: e.target.value }))} className={inputCls} placeholder="144 bpm" />
+            </div>
+            <div>
+              <label htmlFor="pr-create-movement" className={labelCls}>Movimentação fetal</label>
+              <select id="pr-create-movement" value={createRecordStructuredForm.fetalMovement} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, fetalMovement: e.target.value }))} className={inputCls}>
+                <option value="">Não informado</option>
+                <option value="Presente">Presente</option>
+                <option value="Reduzida">Reduzida</option>
+                <option value="Ausente">Ausente</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="pr-create-edema" className={labelCls}>Edema</label>
+              <select id="pr-create-edema" value={createRecordStructuredForm.edema} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, edema: e.target.value }))} className={inputCls}>
+                <option value="">Não informado</option>
+                <option value="Ausente">Ausente</option>
+                <option value="Leve">Leve</option>
+                <option value="Moderado">Moderado</option>
+                <option value="Importante">Importante</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label htmlFor="pr-create-warning" className={labelCls}>Sinais de alerta / intercorrências</label>
+            <textarea id="pr-create-warning" rows={3} value={createRecordStructuredForm.warningSigns} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, warningSigns: e.target.value }))} className={textareaCls} placeholder="PA elevada, sangramento, redução de movimentos..." />
+          </div>
+          <div>
+            <label htmlFor="pr-create-actions" className={labelCls}>Condutas e ações livres</label>
+            <textarea id="pr-create-actions" rows={4} value={createRecordStructuredForm.freeActions} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, freeActions: e.target.value }))} className={textareaCls} placeholder={'Solicitado exame X\nPrescrito ajuste Y\nRetorno em Z'} />
+          </div>
+          <div>
+            <label htmlFor="pr-create-extra" className={labelCls}>Observações adicionais</label>
+            <textarea id="pr-create-extra" rows={3} value={createRecordStructuredForm.additionalObservations} onChange={(e) => setCreateRecordStructuredForm((prev) => ({ ...prev, additionalObservations: e.target.value }))} className={textareaCls} placeholder="vacinação, adesão, contexto social, saúde mental..." />
+          </div>
+          <div>
+            <label htmlFor="pr-create-next" className={labelCls}>Próxima consulta</label>
+            <input id="pr-create-next" type="date" value={createRecordForm.nextAppointment} onChange={(e) => setCreateRecordForm((prev) => ({ ...prev, nextAppointment: e.target.value }))} className={inputCls} />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+            <button type="submit" disabled={saving || !createRecordForm.summary.trim()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+              {saving ? 'Salvando...' : 'Salvar registro'}
+            </button>
+            <button type="button" onClick={closeCreateRecordModal} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
+  );
+}
+
+function PerfilTab({ patientId, prenatalProfile, onSuccess }: { patientId: string; prenatalProfile: PrenatalProfile; onSuccess: (msg: string) => void; }) {
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileForm, setProfileForm] = useState<PrenatalProfile>(prenatalProfile ?? DEFAULT_PRENATAL_PROFILE);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+  useEffect(() => { setProfileForm(prenatalProfile ?? DEFAULT_PRENATAL_PROFILE); }, [prenatalProfile]);
+
+  const hasProfileData = Boolean(
+    profileForm.chronicConditions.length ||
+    profileForm.previousPregnancyComplications.length ||
+    profileForm.familyHistory.length ||
+    profileForm.allergies ||
+    profileForm.continuousMedications ||
+    profileForm.surgeries ||
+    profileForm.obstetricHistory ||
+    profileForm.mentalHealthNotes ||
+    profileForm.socialContext ||
+    profileForm.additionalNotes
+  );
+
+  function toggleArrayField(
+    field: 'chronicConditions' | 'previousPregnancyComplications' | 'familyHistory',
+    value: string,
+  ) {
+    setProfileForm((prev) => ({
+      ...prev,
+      [field]: prev[field].includes(value)
+        ? prev[field].filter((item) => item !== value)
+        : [...prev[field], value],
+    }));
+  }
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setProfileSaving(true);
+    try {
+      const updated = await updatePrenatalProfile(patientId, profileForm);
+      setProfileForm(updated);
+      setIsEditingProfile(false);
+      onSuccess('Perfil clinico-obstetrico atualizado.');
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent';
+  const labelCls = 'block text-xs font-medium text-slate-600 mb-1';
+  const textareaCls = `${inputCls} resize-none`;
+  const summaryBlockCls = 'rounded-lg bg-slate-50 px-4 py-3';
+
+  return (
+    <section aria-label="Perfil clinico-obstetrico" className="rounded-xl border border-slate-100 bg-white p-5 shadow-card">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold text-slate-800">Perfil clinico-obstetrico</h3>
+          <p className="text-sm text-slate-500">
+            Cadastro longitudinal da gestante. Deve ser preenchido uma vez e atualizado quando houver mudança relevante.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setProfileForm(prenatalProfile ?? DEFAULT_PRENATAL_PROFILE);
+            setIsEditingProfile((prev) => !prev);
+          }}
+          className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+        >
+          {isEditingProfile ? 'Cancelar edição' : hasProfileData ? 'Editar perfil' : 'Preencher perfil'}
+        </button>
+      </div>
+
+      {isEditingProfile ? (
+      <form onSubmit={handleSaveProfile} className="grid gap-4">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div>
+            <label htmlFor="profile-risk" className={labelCls}>Classificação de risco</label>
+            <select
+              id="profile-risk"
+              value={profileForm.riskClassification}
+              onChange={(e) => setProfileForm((prev) => ({ ...prev, riskClassification: e.target.value as PrenatalProfile['riskClassification'] }))}
+              className={inputCls}
+            >
+              <option value="habitual">Habitual</option>
+              <option value="intermediario">Intermediário</option>
+              <option value="alto">Alto risco</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="profile-allergies" className={labelCls}>Alergias</label>
+            <input id="profile-allergies" type="text" value={profileForm.allergies ?? ''} onChange={(e) => setProfileForm((prev) => ({ ...prev, allergies: e.target.value }))} className={inputCls} placeholder="medicamentos, alimentos, látex..." />
+          </div>
+          <div>
+            <label htmlFor="profile-medications" className={labelCls}>Medicações de uso contínuo</label>
+            <input id="profile-medications" type="text" value={profileForm.continuousMedications ?? ''} onChange={(e) => setProfileForm((prev) => ({ ...prev, continuousMedications: e.target.value }))} className={inputCls} placeholder="anti-hipertensivos, insulina..." />
+          </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-3">
+          <div>
+            <p className="mb-2 text-xs font-medium text-slate-600">Condições crônicas e comorbidades</p>
+            <div className="flex flex-wrap gap-2">
+              {CHRONIC_CONDITION_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => toggleArrayField('chronicConditions', option)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    profileForm.chronicConditions.includes(option)
+                      ? 'bg-brand-100 text-brand-700 ring-1 ring-brand-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-slate-600">Complicações obstétricas prévias</p>
+            <div className="flex flex-wrap gap-2">
+              {PREVIOUS_COMPLICATION_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => toggleArrayField('previousPregnancyComplications', option)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    profileForm.previousPregnancyComplications.includes(option)
+                      ? 'bg-amber-100 text-amber-800 ring-1 ring-amber-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-slate-600">Histórico familiar relevante</p>
+            <div className="flex flex-wrap gap-2">
+              {FAMILY_HISTORY_OPTIONS.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => toggleArrayField('familyHistory', option)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    profileForm.familyHistory.includes(option)
+                      ? 'bg-sky-100 text-sky-700 ring-1 ring-sky-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div>
+            <label htmlFor="profile-obstetric" className={labelCls}>Histórico obstétrico resumido</label>
+            <textarea id="profile-obstetric" rows={4} value={profileForm.obstetricHistory ?? ''} onChange={(e) => setProfileForm((prev) => ({ ...prev, obstetricHistory: e.target.value }))} className={textareaCls} placeholder="Gesta/para, abortamentos, partos anteriores, intercorrências..." />
+          </div>
+          <div>
+            <label htmlFor="profile-surgeries" className={labelCls}>Cirurgias e antecedentes clínicos importantes</label>
+            <textarea id="profile-surgeries" rows={4} value={profileForm.surgeries ?? ''} onChange={(e) => setProfileForm((prev) => ({ ...prev, surgeries: e.target.value }))} className={textareaCls} placeholder="cesárea prévia, cirurgia uterina, internações, cardiopatia..." />
+          </div>
+          <div>
+            <label htmlFor="profile-mental" className={labelCls}>Saúde mental e vulnerabilidades</label>
+            <textarea id="profile-mental" rows={3} value={profileForm.mentalHealthNotes ?? ''} onChange={(e) => setProfileForm((prev) => ({ ...prev, mentalHealthNotes: e.target.value }))} className={textareaCls} placeholder="ansiedade, depressão, necessidade de apoio, adesão..." />
+          </div>
+          <div>
+            <label htmlFor="profile-social" className={labelCls}>Contexto social e apoio</label>
+            <textarea id="profile-social" rows={3} value={profileForm.socialContext ?? ''} onChange={(e) => setProfileForm((prev) => ({ ...prev, socialContext: e.target.value }))} className={textareaCls} placeholder="rede de apoio, condições de moradia, violência, transporte..." />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor="profile-notes" className={labelCls}>Observações gerais para seguimento</label>
+          <textarea id="profile-notes" rows={4} value={profileForm.additionalNotes ?? ''} onChange={(e) => setProfileForm((prev) => ({ ...prev, additionalNotes: e.target.value }))} className={textareaCls} placeholder="anotações livres do acompanhamento, plano, cuidados especiais..." />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="submit"
+            disabled={profileSaving}
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+          >
+            {profileSaving ? <Spinner size="sm" /> : null}
+            {profileSaving ? 'Salvando...' : 'Salvar perfil'}
+          </button>
+          <p className="text-xs text-slate-400">
+            Campos úteis para estratificação de risco e continuidade do pré-natal.
+          </p>
+        </div>
+      </form>
+      ) : hasProfileData ? (
+        <div className="grid gap-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Classificação de risco</p>
+              <p className="mt-1 text-sm text-slate-700">{profileForm.riskClassification}</p>
+            </div>
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Alergias</p>
+              <p className="mt-1 text-sm text-slate-700">{profileForm.allergies || 'Não informado'}</p>
+            </div>
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Medicações de uso contínuo</p>
+              <p className="mt-1 text-sm text-slate-700">{profileForm.continuousMedications || 'Não informado'}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Condições crônicas</p>
+              <p className="mt-1 text-sm text-slate-700">{profileForm.chronicConditions.length ? profileForm.chronicConditions.join(', ') : 'Nenhuma informada'}</p>
+            </div>
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Complicações obstétricas prévias</p>
+              <p className="mt-1 text-sm text-slate-700">{profileForm.previousPregnancyComplications.length ? profileForm.previousPregnancyComplications.join(', ') : 'Nenhuma informada'}</p>
+            </div>
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Histórico familiar</p>
+              <p className="mt-1 text-sm text-slate-700">{profileForm.familyHistory.length ? profileForm.familyHistory.join(', ') : 'Nenhum informado'}</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Histórico obstétrico</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">{profileForm.obstetricHistory || 'Não informado'}</p>
+            </div>
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cirurgias e antecedentes clínicos</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">{profileForm.surgeries || 'Não informado'}</p>
+            </div>
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Saúde mental e vulnerabilidades</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">{profileForm.mentalHealthNotes || 'Não informado'}</p>
+            </div>
+            <div className={summaryBlockCls}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contexto social e apoio</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">{profileForm.socialContext || 'Não informado'}</p>
+            </div>
+          </div>
+
+          <div className={summaryBlockCls}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Observações gerais</p>
+            <p className="mt-1 text-sm leading-relaxed text-slate-700">{profileForm.additionalNotes || 'Não informado'}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center">
+          <p className="text-sm font-medium text-slate-700">Perfil ainda não preenchido.</p>
+          <p className="mt-2 text-sm text-slate-500">Preencha uma vez a ficha clínica-obstétrica da gestante e depois utilize apenas o modo de visualização ou edição.</p>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -948,34 +1883,145 @@ interface MedicamentosTabProps {
 function MedicamentosTab({ patientId, medications, onSuccess }: MedicamentosTabProps) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [busyMedicationId, setBusyMedicationId] = useState<string | null>(null);
   const [localMeds, setLocalMeds] = useState(medications);
-  const [form, setForm] = useState({
+  const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
+  const [isCreateMedicationModalOpen, setIsCreateMedicationModalOpen] = useState(false);
+  const [isMedicationModalEditing, setIsMedicationModalEditing] = useState(false);
+  const [createMedicationForm, setCreateMedicationForm] = useState({
+    name: '', dose: '', frequency: '', duration: '', notes: '',
+  });
+  const [medicationModalForm, setMedicationModalForm] = useState({
     name: '', dose: '', frequency: '', duration: '', notes: '',
   });
 
   useEffect(() => { setLocalMeds(medications); }, [medications]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  function closeCreateMedicationModal() {
+    setIsCreateMedicationModalOpen(false);
+    setCreateMedicationForm({ name: '', dose: '', frequency: '', duration: '', notes: '' });
+  }
+
+  function closeMedicationModal() {
+    setSelectedMedication(null);
+    setIsMedicationModalEditing(false);
+    setMedicationModalForm({ name: '', dose: '', frequency: '', duration: '', notes: '' });
+  }
+
+  async function handleCreateMedication(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) return;
+    if (!createMedicationForm.name.trim()) return;
     setSaving(true);
     try {
       const med = await addMedication({
         patientId,
-        name: form.name,
-        dose: form.dose,
-        frequency: form.frequency,
-        duration: form.duration,
-        notes: form.notes || undefined,
+        name: createMedicationForm.name,
+        dose: createMedicationForm.dose,
+        frequency: createMedicationForm.frequency,
+        duration: createMedicationForm.duration,
+        notes: createMedicationForm.notes || undefined,
         startDate: new Date().toISOString().split('T')[0],
         isActive: true,
         prescribedBy: user?.nomeCompleto ?? 'Dr. Médico',
       });
       setLocalMeds(prev => [med, ...prev]);
-      setForm({ name: '', dose: '', frequency: '', duration: '', notes: '' });
+      closeCreateMedicationModal();
       onSuccess('Medicamento cadastrado. O paciente será notificado. (Simulação)');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function openMedicationModal(med: Medication, editMode = false) {
+    setSelectedMedication(med);
+    setIsMedicationModalEditing(editMode);
+    setMedicationModalForm({
+      name: med.name,
+      dose: med.dose,
+      frequency: med.frequency,
+      duration: med.duration,
+      notes: med.notes ?? '',
+    });
+  }
+
+  async function handleSaveMedicationEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedMedication || !medicationModalForm.name.trim()) return;
+    setBusyMedicationId(selectedMedication.id);
+    try {
+      const updated = await updateMedication(selectedMedication.id, {
+        name: medicationModalForm.name,
+        dose: medicationModalForm.dose,
+        frequency: medicationModalForm.frequency,
+        duration: medicationModalForm.duration,
+        notes: medicationModalForm.notes || undefined,
+        startDate: selectedMedication.startDate,
+        endDate: selectedMedication.endDate,
+        isActive: selectedMedication.isActive,
+      });
+
+      const merged = { ...selectedMedication, ...updated, prescribedBy: selectedMedication.prescribedBy };
+      setLocalMeds((prev) => prev.map((med) => (med.id === selectedMedication.id ? merged : med)));
+      setSelectedMedication(merged);
+      setIsMedicationModalEditing(false);
+      onSuccess('Medicamento atualizado com sucesso.');
+    } finally {
+      setBusyMedicationId(null);
+    }
+  }
+
+  async function handleToggleMedication(med: Medication) {
+    const actionLabel = med.isActive ? 'desativar' : 'reativar';
+    if (!window.confirm(`Deseja ${actionLabel} este medicamento?`)) return;
+
+    setBusyMedicationId(med.id);
+    try {
+      const updated = await updateMedication(med.id, {
+        isActive: !med.isActive,
+        endDate: med.isActive ? new Date().toISOString().split('T')[0] : undefined,
+        startDate: med.startDate,
+        name: med.name,
+        dose: med.dose,
+        frequency: med.frequency,
+        duration: med.duration,
+        notes: med.notes,
+      });
+
+      setLocalMeds(prev => prev.map((item) => (
+        item.id === med.id
+          ? {
+              ...item,
+              ...updated,
+              prescribedBy: item.prescribedBy,
+              endDate: med.isActive ? new Date().toISOString().split('T')[0] : undefined,
+            }
+          : item
+      )));
+      if (selectedMedication?.id === med.id) {
+        setSelectedMedication((prev) => prev ? {
+          ...prev,
+          ...updated,
+          prescribedBy: prev.prescribedBy,
+          endDate: med.isActive ? new Date().toISOString().split('T')[0] : undefined,
+        } : prev);
+      }
+      onSuccess(med.isActive ? 'Medicamento desativado.' : 'Medicamento reativado.');
+    } finally {
+      setBusyMedicationId(null);
+    }
+  }
+
+  async function handleDeleteMedication(med: Medication) {
+    if (!window.confirm(`Deseja remover "${med.name}"? Esta ação não poderá ser desfeita.`)) return;
+
+    setBusyMedicationId(med.id);
+    try {
+      await deleteMedication(med.id);
+      setLocalMeds(prev => prev.filter((item) => item.id !== med.id));
+      if (selectedMedication?.id === med.id) closeMedicationModal();
+      onSuccess('Medicamento removido.');
+    } finally {
+      setBusyMedicationId(null);
     }
   }
 
@@ -986,83 +2032,207 @@ function MedicamentosTab({ patientId, medications, onSuccess }: MedicamentosTabP
   const inactive = localMeds.filter(m => !m.isActive);
 
   return (
-    <div className="max-w-2xl">
-      {/* Form */}
-      <section aria-label="Prescrever novo medicamento" className="bg-white rounded-xl border border-slate-100 shadow-card p-5 mb-6">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">Prescrever medicamento</h3>
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="col-span-2">
-              <label htmlFor="med-name" className={labelCls}>Nome do medicamento *</label>
-              <input id="med-name" type="text" required value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} className={inputCls} placeholder="ex: Metildopa" />
+    <div>
+      <section aria-label="Medicamentos do paciente" className="min-w-0">
+        <div className="grid gap-6 2xl:grid-cols-2">
+          <div>
+            <div className="mb-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700">Em uso ({active.length})</h3>
+                  <p className="text-sm text-slate-500">Prescrições ativas acompanhadas neste momento.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateMedicationModalOpen(true)}
+                  className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+                >
+                  Novo medicamento
+                </button>
+              </div>
+            </div>
+            {active.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400 shadow-card">
+                Nenhum medicamento ativo.
+              </div>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {active.map(m => (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => openMedicationModal(m)}
+                      className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-100 bg-white px-4 py-3 text-left shadow-card transition-shadow hover:shadow-card-md"
+                    >
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{m.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{m.dose} · {m.frequency} · {m.duration}</p>
+                      {m.notes && <p className="mt-1 text-xs text-brand-700">{m.notes}</p>}
+                      <p className="mt-1 text-xs text-slate-400">Prescrito por {m.prescribedBy}</p>
+                    </div>
+                    <Badge variant="success">Ativo</Badge>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-slate-500">Histórico - suspensos ({inactive.length})</h3>
+              <p className="text-sm text-slate-500">Medicamentos encerrados ou já concluídos.</p>
+            </div>
+            {inactive.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm text-slate-400 shadow-card">
+                Nenhum medicamento no histórico.
+              </div>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {inactive.map(m => (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      onClick={() => openMedicationModal(m)}
+                      className="flex w-full items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-left transition-shadow hover:shadow-card"
+                    >
+                    <div>
+                      <p className="text-sm font-medium text-slate-500">{m.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">{m.dose} · {m.frequency} · {m.duration}</p>
+                      {m.notes && <p className="mt-1 text-xs text-slate-500">{m.notes}</p>}
+                    </div>
+                    <Badge variant="neutral">Suspenso</Badge>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <Modal
+        isOpen={isCreateMedicationModalOpen}
+        onClose={closeCreateMedicationModal}
+        title="Novo medicamento"
+        maxWidth="max-w-3xl"
+      >
+        <form onSubmit={handleCreateMedication} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor="med-create-name" className={labelCls}>Nome do medicamento *</label>
+              <input id="med-create-name" type="text" value={createMedicationForm.name} onChange={(e) => setCreateMedicationForm((prev) => ({ ...prev, name: e.target.value }))} className={inputCls} placeholder="ex: Metildopa" />
             </div>
             <div>
-              <label htmlFor="med-dose" className={labelCls}>Dosagem *</label>
-              <input id="med-dose" type="text" required value={form.dose} onChange={e => setForm(p => ({ ...p, dose: e.target.value }))} className={inputCls} placeholder="ex: 250mg" />
+              <label htmlFor="med-create-dose" className={labelCls}>Dosagem *</label>
+              <input id="med-create-dose" type="text" value={createMedicationForm.dose} onChange={(e) => setCreateMedicationForm((prev) => ({ ...prev, dose: e.target.value }))} className={inputCls} placeholder="ex: 250mg" />
             </div>
             <div>
-              <label htmlFor="med-freq" className={labelCls}>Frequência *</label>
-              <input id="med-freq" type="text" required value={form.frequency} onChange={e => setForm(p => ({ ...p, frequency: e.target.value }))} className={inputCls} placeholder="ex: 3x ao dia" />
+              <label htmlFor="med-create-frequency" className={labelCls}>Frequência *</label>
+              <input id="med-create-frequency" type="text" value={createMedicationForm.frequency} onChange={(e) => setCreateMedicationForm((prev) => ({ ...prev, frequency: e.target.value }))} className={inputCls} placeholder="ex: 3x ao dia" />
             </div>
             <div>
-              <label htmlFor="med-dur" className={labelCls}>Duração *</label>
-              <input id="med-dur" type="text" required value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))} className={inputCls} placeholder="ex: 30 dias" />
+              <label htmlFor="med-create-duration" className={labelCls}>Duração *</label>
+              <input id="med-create-duration" type="text" value={createMedicationForm.duration} onChange={(e) => setCreateMedicationForm((prev) => ({ ...prev, duration: e.target.value }))} className={inputCls} placeholder="ex: 30 dias" />
             </div>
             <div>
-              <label htmlFor="med-notes" className={labelCls}>Observações</label>
-              <input id="med-notes" type="text" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} className={inputCls} placeholder="instruções especiais..." />
+              <label htmlFor="med-create-notes" className={labelCls}>Observações</label>
+              <input id="med-create-notes" type="text" value={createMedicationForm.notes} onChange={(e) => setCreateMedicationForm((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} placeholder="instruções especiais..." />
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={saving || !form.name.trim()}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-600 rounded-lg hover:bg-brand-700 disabled:opacity-60 transition-colors"
-          >
-            {saving ? <Spinner size="sm" /> : null}
-            {saving ? 'Salvando...' : 'Prescrever'}
-          </button>
+          <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+            <button type="submit" disabled={saving || !createMedicationForm.name.trim()} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+              {saving ? 'Salvando...' : 'Prescrever'}
+            </button>
+            <button type="button" onClick={closeCreateMedicationModal} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              Cancelar
+            </button>
+          </div>
         </form>
-      </section>
+      </Modal>
 
-      {/* Lista - ativos */}
-      <section aria-label="Medicamentos ativos">
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Em uso ({active.length})</h3>
-        {active.length === 0 ? (
-          <p className="text-sm text-slate-400 mb-6">Nenhum medicamento ativo.</p>
-        ) : (
-          <ul className="flex flex-col gap-2 mb-6">
-            {active.map(m => (
-              <li key={m.id} className="bg-white rounded-xl border border-slate-100 shadow-card px-4 py-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{m.name}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{m.dose} · {m.frequency} · {m.duration}</p>
-                  {m.notes && <p className="text-xs text-brand-700 mt-1">{m.notes}</p>}
-                  <p className="text-xs text-slate-400 mt-1">Prescrito por {m.prescribedBy}</p>
+      <Modal
+        isOpen={Boolean(selectedMedication)}
+        onClose={closeMedicationModal}
+        title={isMedicationModalEditing ? 'Editar medicamento' : 'Detalhes do medicamento'}
+        maxWidth="max-w-3xl"
+      >
+        {selectedMedication && (
+          isMedicationModalEditing ? (
+            <form onSubmit={handleSaveMedicationEdit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label htmlFor="med-modal-name" className={labelCls}>Nome do medicamento *</label>
+                  <input id="med-modal-name" type="text" value={medicationModalForm.name} onChange={(e) => setMedicationModalForm((prev) => ({ ...prev, name: e.target.value }))} className={inputCls} />
                 </div>
-                <Badge variant="success">Ativo</Badge>
-              </li>
-            ))}
-          </ul>
+                <div>
+                  <label htmlFor="med-modal-dose" className={labelCls}>Dosagem</label>
+                  <input id="med-modal-dose" type="text" value={medicationModalForm.dose} onChange={(e) => setMedicationModalForm((prev) => ({ ...prev, dose: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="med-modal-frequency" className={labelCls}>Frequência</label>
+                  <input id="med-modal-frequency" type="text" value={medicationModalForm.frequency} onChange={(e) => setMedicationModalForm((prev) => ({ ...prev, frequency: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="med-modal-duration" className={labelCls}>Duração</label>
+                  <input id="med-modal-duration" type="text" value={medicationModalForm.duration} onChange={(e) => setMedicationModalForm((prev) => ({ ...prev, duration: e.target.value }))} className={inputCls} />
+                </div>
+                <div>
+                  <label htmlFor="med-modal-notes" className={labelCls}>Observações</label>
+                  <input id="med-modal-notes" type="text" value={medicationModalForm.notes} onChange={(e) => setMedicationModalForm((prev) => ({ ...prev, notes: e.target.value }))} className={inputCls} />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                <button type="submit" disabled={busyMedicationId === selectedMedication.id} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60">
+                  {busyMedicationId === selectedMedication.id ? 'Salvando...' : 'Salvar alterações'}
+                </button>
+                <button type="button" onClick={() => openMedicationModal(selectedMedication, false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h4 className="text-lg font-semibold text-slate-900">{selectedMedication.name}</h4>
+                  <p className="mt-1 text-sm text-slate-500">{selectedMedication.dose} · {selectedMedication.frequency} · {selectedMedication.duration}</p>
+                </div>
+                <Badge variant={selectedMedication.isActive ? 'success' : 'neutral'}>
+                  {selectedMedication.isActive ? 'Ativo' : 'Suspenso'}
+                </Badge>
+              </div>
+              {selectedMedication.notes && (
+                <div>
+                  <h5 className="mb-2 text-sm font-semibold text-slate-800">Observações</h5>
+                  <p className="text-sm text-slate-700">{selectedMedication.notes}</p>
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Início</p>
+                  <p className="text-sm text-slate-700">{formatDate(selectedMedication.startDate, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 px-3 py-2">
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Prescrito por</p>
+                  <p className="text-sm text-slate-700">{selectedMedication.prescribedBy}</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+                <button type="button" onClick={() => openMedicationModal(selectedMedication, true)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Editar
+                </button>
+                <button type="button" onClick={() => handleToggleMedication(selectedMedication)} disabled={busyMedicationId === selectedMedication.id} className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60 ${selectedMedication.isActive ? 'border border-amber-200 text-amber-700 hover:bg-amber-50' : 'border border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}>
+                  {busyMedicationId === selectedMedication.id ? 'Processando...' : selectedMedication.isActive ? 'Desativar' : 'Reativar'}
+                </button>
+                <button type="button" onClick={() => handleDeleteMedication(selectedMedication)} disabled={busyMedicationId === selectedMedication.id} className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60">
+                  {busyMedicationId === selectedMedication.id ? 'Removendo...' : 'Remover'}
+                </button>
+              </div>
+            </div>
+          )
         )}
-      </section>
-
-      {/* Lista - inativos */}
-      {inactive.length > 0 && (
-        <section aria-label="Medicamentos inativos">
-          <h3 className="text-sm font-semibold text-slate-500 mb-3">Histórico - suspensos ({inactive.length})</h3>
-          <ul className="flex flex-col gap-2">
-            {inactive.map(m => (
-              <li key={m.id} className="bg-slate-50 rounded-xl border border-slate-100 px-4 py-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-500">{m.name}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{m.dose} · {m.frequency} · {m.duration}</p>
-                </div>
-                <Badge variant="neutral">Suspenso</Badge>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      </Modal>
     </div>
   );
 }
@@ -1076,6 +2246,7 @@ export function PatientDetails() {
   const [reports,   setReports]   = useState<DailyReport[]>([]);
   const [meds,      setMeds]      = useState<Medication[]>([]);
   const [records,   setRecords]   = useState<MedicalRecord[]>([]);
+  const [prenatalProfile, setPrenatalProfile] = useState<PrenatalProfile>(DEFAULT_PRENATAL_PROFILE);
   const [summary,   setSummary]   = useState<AssistantSummary | undefined>();
   const [timeline,  setTimeline]  = useState<TimelineEvent[]>([]);
   const [loading,   setLoading]   = useState(true);
@@ -1098,6 +2269,7 @@ export function PatientDetails() {
         setReports(data.reports);
         setMeds(data.medications);
         setRecords(data.medicalRecords);
+        setPrenatalProfile(data.prenatalProfile ?? DEFAULT_PRENATAL_PROFILE);
         setTimeline(data.timeline);
         setSummary(data.summary);
       })
@@ -1134,36 +2306,40 @@ export function PatientDetails() {
       <PatientHeader patient={patient} />
 
       {/* Tabs + conteúdo */}
-      <div className="px-6 pb-8">
+      <div className="mx-auto w-full max-w-[1600px] px-4 pb-8 sm:px-6 lg:px-8">
         <Tabs value={activeTab} onValueChange={setTab}>
           <TabsList aria-label="Seções do paciente" className="mb-0">
             <TabsTrigger value="analise">Análise</TabsTrigger>
             <TabsTrigger value="relatos">Relatos</TabsTrigger>
             <TabsTrigger value="resumos-ia">Resumos IA</TabsTrigger>
-            <TabsTrigger value="sinais-vitais">Sinais Vitais</TabsTrigger>
             <TabsTrigger value="prontuario">Prontuário</TabsTrigger>
             <TabsTrigger value="medicamentos">Medicamentos</TabsTrigger>
+            <TabsTrigger value="perfil">Perfil</TabsTrigger>
           </TabsList>
 
           <TabsContent value="analise">
             <AnalysisTab
-              patient={patient}
               summary={summary}
               timeline={timeline}
+              reports={reports}
               summaryLoading={summaryLoading}
             />
           </TabsContent>
 
           <TabsContent value="relatos">
-            <ReportsTab reports={reports} />
+            <ReportsTab reports={reports} onSuccess={setToast} onReportsChange={setReports} />
           </TabsContent>
 
           <TabsContent value="resumos-ia">
             <DoctorAISummariesTab patientId={patient.id} onSuccess={setToast} />
           </TabsContent>
 
-          <TabsContent value="sinais-vitais">
-            <VitalsTab patient={patient} />
+          <TabsContent value="perfil">
+            <PerfilTab
+              patientId={patient.id}
+              prenatalProfile={prenatalProfile}
+              onSuccess={setToast}
+            />
           </TabsContent>
 
           <TabsContent value="prontuario">

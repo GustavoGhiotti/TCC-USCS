@@ -28,7 +28,7 @@ function IconEyeOff({ className }: { className?: string }) {
 
 // ─── Feature bullets (painel esquerdo desktop) ────────────────────────────────
 const FEATURES = [
-  'Monitoramento de sinais vitais em tempo real',
+  'Monitoramento diário da evolução da gestação',
   'Alertas clínicos inteligentes com triagem automática',
   'Comunicação segura entre médico e gestante',
 ];
