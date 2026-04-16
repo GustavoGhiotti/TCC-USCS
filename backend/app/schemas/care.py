@@ -38,6 +38,29 @@ class MedicamentoUpdateIn(BaseModel):
     observacoes: str | None = None
 
 
+class ExameArquivoIn(BaseModel):
+    titulo: str
+    tipoExame: str | None = None
+    dataExame: date | None = None
+    observacoes: str | None = None
+    nomeArquivo: str
+    mimeType: str = "application/pdf"
+    conteudoBase64: str
+
+
+class ExameArquivoOut(BaseModel):
+    id: str
+    gestanteId: str
+    titulo: str
+    tipoExame: str | None = None
+    dataExame: date | None = None
+    observacoes: str | None = None
+    nomeArquivo: str
+    mimeType: str
+    tamanhoBytes: int
+    enviadoEm: datetime
+
+
 class ConsultaOut(BaseModel):
     id: str
     gestanteId: str

@@ -45,6 +45,19 @@ export interface Medication {
   prescribedBy: string;
 }
 
+export interface MedicalExam {
+  id: string;
+  patientId: string;
+  title: string;
+  examType?: string;
+  examDate?: string;
+  notes?: string;
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  uploadedAt: string;
+}
+
 export interface MedicalRecord {
   id: string;
   patientId: string;

@@ -1,84 +1,141 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GestanteLayout } from '../../components/layout/GestanteLayout';
-import { Card, CardBody } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
+import { Card, CardBody } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../lib/utils';
 import {
-  getRelatosGestanteService,
   createRelatoGestante,
+  getRelatosGestanteService,
   type PeriodoFiltro,
   type RelatoPayload,
 } from '../../services/gestanteService';
 import type { RelatoDiario } from '../../types/domain';
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
 const HUMORES: { value: RelatoDiario['humor']; label: string }[] = [
-  { value: 'feliz',    label: 'Feliz'    },
-  { value: 'normal',   label: 'Normal'   },
-  { value: 'triste',   label: 'Triste'   },
-  { value: 'ansioso',  label: 'Ansioso'  },
+  { value: 'feliz', label: 'Feliz' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'triste', label: 'Triste' },
+  { value: 'ansioso', label: 'Ansioso' },
 ];
 
 const HUMOR_BADGE: Record<RelatoDiario['humor'], React.ComponentProps<typeof Badge>['variant']> = {
-  feliz:   'success',
-  normal:  'info',
-  triste:  'warning',
+  feliz: 'success',
+  normal: 'info',
+  triste: 'warning',
   ansioso: 'danger',
 };
 
 const SINTOMAS_OPCOES = [
-  'Cansaço',
-  'Inchaço',
+  'Cansaco',
+  'Inchaco',
   'Dor nas costas',
   'Azia',
   'Gases',
-  'Contrações',
+  'Contracoes',
   'Tontura',
-  'Dor de cabeça',
-  'Náusea',
-  'Insônia',
-  'Pressão alta',
+  'Dor de cabeca',
+  'Nausea',
+  'Insonia',
+  'Pressao alta',
   'Edema',
 ];
 
 const PERIODOS: { value: PeriodoFiltro; label: string }[] = [
   { value: 'todos', label: 'Todos' },
-  { value: '30d',   label: 'Últimos 30 dias' },
-  { value: '7d',    label: 'Últimos 7 dias'  },
+  { value: '30d', label: 'Ultimos 30 dias' },
+  { value: '7d', label: 'Ultimos 7 dias' },
 ];
 
-// ─── Formulário de novo relato ────────────────────────────────────────────────
-interface NovoRelatoFormProps {
-  onSave: (payload: RelatoPayload) => Promise<void>;
-  onCancel: () => void;
-}
-function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
-  const today = new Date().toISOString().slice(0, 10);
-  const [data, setData]         = useState(today);
-  const [humor, setHumor]       = useState<RelatoDiario['humor']>('normal');
-  const [sintomas, setSintomas] = useState<string[]>([]);
-  const [descricao, setDescricao] = useState('');
-  const [saving, setSaving]     = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+const RELATO_NOTES_STORAGE_KEY = 'gestacare.relato-extra-notes';
 
-  function toggleSintoma(s: string) {
-    setSintomas(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+function getStoredRelatoNotes(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(RELATO_NOTES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function getRelatoNoteKey(userId: string, relatoId: string) {
+  return `${userId}:${relatoId}`;
+}
+
+function getStoredRelatoNote(userId: string, relatoId: string) {
+  return getStoredRelatoNotes()[getRelatoNoteKey(userId, relatoId)] ?? '';
+}
+
+function setStoredRelatoNote(userId: string, relatoId: string, note: string) {
+  if (typeof window === 'undefined') return;
+
+  const notes = getStoredRelatoNotes();
+  const key = getRelatoNoteKey(userId, relatoId);
+  const trimmed = note.trim();
+
+  if (trimmed) {
+    notes[key] = trimmed;
+  } else {
+    delete notes[key];
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  window.localStorage.setItem(RELATO_NOTES_STORAGE_KEY, JSON.stringify(notes));
+}
+
+interface RelatoFormProps {
+  initialValues?: RelatoPayload;
+  initialExtraNote?: string;
+  saveLabel?: string;
+  isEditing?: boolean;
+  onSave: (payload: RelatoPayload, extraNote: string) => Promise<void>;
+  onCancel: () => void;
+}
+
+function RelatoForm({
+  initialValues,
+  initialExtraNote = '',
+  saveLabel = 'Salvar relato',
+  isEditing = false,
+  onSave,
+  onCancel,
+}: RelatoFormProps) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [data, setData] = useState(initialValues?.data ?? today);
+  const [humor, setHumor] = useState<RelatoDiario['humor']>(initialValues?.humor ?? 'normal');
+  const [sintomas, setSintomas] = useState<string[]>(initialValues?.sintomas ?? []);
+  const [descricao, setDescricao] = useState(initialValues?.descricao ?? '');
+  const [extraNote, setExtraNote] = useState(initialExtraNote);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function toggleSintoma(sintoma: string) {
+    setSintomas((current) =>
+      current.includes(sintoma)
+        ? current.filter((item) => item !== sintoma)
+        : [...current, sintoma],
+    );
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
     setFormError(null);
     setSaving(true);
+
     try {
-      await onSave({
-        data,
-        humor,
-        sintomas,
-        descricao,
-      });
+      await onSave(
+        {
+          data,
+          humor,
+          sintomas,
+          descricao,
+        },
+        extraNote,
+      );
     } catch {
       setFormError('Erro ao salvar relato. Tente novamente.');
       setSaving(false);
@@ -88,14 +145,13 @@ function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
   return (
     <form onSubmit={handleSubmit} noValidate>
       {formError && (
-        <div role="alert" className="mb-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3">
+        <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {formError}
         </div>
       )}
 
-      {/* Data */}
       <div className="mb-4">
-        <label htmlFor="relato-data" className="block text-sm font-medium text-slate-700 mb-1.5">
+        <label htmlFor="relato-data" className="mb-1.5 block text-sm font-medium text-slate-700">
           Data do relato
         </label>
         <input
@@ -103,68 +159,90 @@ function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
           type="date"
           value={data}
           max={today}
-          onChange={e => setData(e.target.value)}
+          onChange={(event) => setData(event.target.value)}
           required
-          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-500 transition-colors"
+          disabled={isEditing}
+          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition-colors focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-600/30 disabled:bg-slate-50 disabled:text-slate-500"
         />
+        {isEditing && (
+          <p className="mt-1.5 text-xs text-slate-400">
+            A data fica fixa para atualizar o relato do dia sem criar outro registro.
+          </p>
+        )}
       </div>
 
-      {/* Humor */}
       <div className="mb-4">
-        <p className="text-sm font-medium text-slate-700 mb-1.5">Como você está se sentindo?</p>
+        <p className="mb-1.5 text-sm font-medium text-slate-700">Como voce esta se sentindo?</p>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Humor">
-          {HUMORES.map(h => (
+          {HUMORES.map((humorOption) => (
             <button
-              key={h.value}
+              key={humorOption.value}
               type="button"
-              onClick={() => setHumor(h.value)}
-              aria-pressed={humor === h.value}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                humor === h.value
+              onClick={() => setHumor(humorOption.value)}
+              aria-pressed={humor === humorOption.value}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                humor === humorOption.value
                   ? 'bg-brand-600 text-white'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-700'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-700'
               }`}
             >
-              {h.label}
+              {humorOption.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Sintomas */}
       <div className="mb-4">
-        <p className="text-sm font-medium text-slate-700 mb-1.5">Sintomas apresentados</p>
+        <p className="mb-1.5 text-sm font-medium text-slate-700">Sintomas apresentados</p>
         <div className="flex flex-wrap gap-2" role="group" aria-label="Sintomas">
-          {SINTOMAS_OPCOES.map(s => (
+          {SINTOMAS_OPCOES.map((sintoma) => (
             <button
-              key={s}
+              key={sintoma}
               type="button"
-              onClick={() => toggleSintoma(s)}
-              aria-pressed={sintomas.includes(s)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                sintomas.includes(s)
+              onClick={() => toggleSintoma(sintoma)}
+              aria-pressed={sintomas.includes(sintoma)}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                sintomas.includes(sintoma)
                   ? 'bg-brand-600 text-white'
-                  : 'bg-slate-50 text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-700'
+                  : 'border border-slate-200 bg-slate-50 text-slate-600 hover:border-brand-300 hover:text-brand-700'
               }`}
             >
-              {s}
+              {sintoma}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Descrição */}
       <div className="mb-6">
-        <label htmlFor="relato-descricao" className="block text-sm font-medium text-slate-700 mb-1.5">
-          Descrição livre <span className="text-slate-400 font-normal">(opcional)</span>
+        <label htmlFor="relato-descricao" className="mb-1.5 block text-sm font-medium text-slate-700">
+          Descricao livre <span className="font-normal text-slate-400">(opcional)</span>
         </label>
         <textarea
           id="relato-descricao"
           value={descricao}
-          onChange={e => setDescricao(e.target.value)}
+          onChange={(event) => setDescricao(event.target.value)}
           rows={3}
-          placeholder="Descreva como foi o seu dia…"
-          className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white text-slate-900 placeholder:text-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-brand-600/30 focus:border-brand-500 transition-colors"
+          placeholder="Descreva como foi o seu dia..."
+          className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-600/30"
+        />
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Nota complementar</h3>
+            <p className="mt-0.5 text-xs text-slate-500">
+              Registre algo que voce esqueceu ou que aconteceu depois do envio inicial.
+            </p>
+          </div>
+          {extraNote.trim() && <Badge variant="info">Com nota</Badge>}
+        </div>
+        <textarea
+          value={extraNote}
+          onChange={(event) => setExtraNote(event.target.value)}
+          rows={3}
+          placeholder="Ex.: Depois do relato senti tontura leve no fim da tarde."
+          className="w-full resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-600/30"
         />
       </div>
 
@@ -173,22 +251,22 @@ function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="px-4 py-2.5 text-sm font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+          className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {saving ? (
             <>
-              <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" aria-hidden="true" />
-              Salvando…
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" aria-hidden="true" />
+              Salvando...
             </>
           ) : (
-            'Salvar relato'
+            saveLabel
           )}
         </button>
       </div>
@@ -196,25 +274,24 @@ function NovoRelatoForm({ onSave, onCancel }: NovoRelatoFormProps) {
   );
 }
 
-// ─── Toast de sucesso ─────────────────────────────────────────────────────────
-function SuccessToast({ onClose }: { onClose: () => void }) {
+function SuccessToast({ message, onClose }: { message: string; onClose: () => void }) {
   useEffect(() => {
-    const t = setTimeout(onClose, 4000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
   }, [onClose]);
 
   return (
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-white border border-emerald-200 text-emerald-700 rounded-xl shadow-modal px-5 py-3.5 text-sm font-medium"
+      className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl border border-emerald-200 bg-white px-5 py-3.5 text-sm font-medium text-emerald-700 shadow-modal"
     >
-      <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
-      Relato registrado com sucesso!
-      <button type="button" onClick={onClose} aria-label="Fechar notificação" className="ml-2 text-emerald-500 hover:text-emerald-700">
-        <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      {message}
+      <button type="button" onClick={onClose} aria-label="Fechar notificacao" className="ml-2 text-emerald-500 hover:text-emerald-700">
+        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
           <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
         </svg>
       </button>
@@ -222,106 +299,129 @@ function SuccessToast({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
 export function GestanteRelatos() {
   const { user } = useAuth();
-
-  const [relatos, setRelatos]   = useState<RelatoDiario[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState<string | null>(null);
-  const [periodo, setPeriodo]   = useState<PeriodoFiltro>('todos');
-  const [isModalOpen, setModalOpen] = useState(false);
-  const [showToast, setShowToast]   = useState(false);
+  const [relatos, setRelatos] = useState<RelatoDiario[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [periodo, setPeriodo] = useState<PeriodoFiltro>('todos');
+  const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+  const [selectedRelato, setSelectedRelato] = useState<RelatoDiario | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   function loadRelatos() {
     if (!user) return;
+
     setLoading(true);
+    setError(null);
+
     getRelatosGestanteService(user.id, periodo)
       .then(setRelatos)
-      .catch(() => setError('Não foi possível carregar os relatos. Tente novamente.'))
+      .catch(() => setError('Nao foi possivel carregar os relatos. Tente novamente.'))
       .finally(() => setLoading(false));
   }
 
   useEffect(loadRelatos, [user, periodo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleSave(payload: RelatoPayload) {
-    await createRelatoGestante(user!.id, payload);
-    setModalOpen(false);
-    setShowToast(true);
+  async function handleCreate(payload: RelatoPayload, extraNote: string) {
+    if (!user) return;
+
+    await createRelatoGestante(user.id, payload);
+    const refreshed = await getRelatosGestanteService(user.id, 'todos');
+    const savedReport = refreshed.find((item) => item.data === payload.data);
+
+    if (savedReport) {
+      setStoredRelatoNote(user.id, savedReport.id, extraNote);
+    }
+
+    setCreateModalOpen(false);
+    setToastMessage('Relato registrado com sucesso!');
     loadRelatos();
+  }
+
+  async function handleUpdate(payload: RelatoPayload, extraNote: string) {
+    if (!user || !selectedRelato) return;
+
+    await createRelatoGestante(user.id, payload);
+    setStoredRelatoNote(user.id, selectedRelato.id, extraNote);
+    setSelectedRelato(null);
+    setToastMessage('Relato atualizado com sucesso!');
+    loadRelatos();
+  }
+
+  function openRelato(relato: RelatoDiario) {
+    setSelectedRelato(relato);
+  }
+
+  function getRelatoNote(relatoId: string) {
+    return user ? getStoredRelatoNote(user.id, relatoId) : '';
   }
 
   const filtered = useMemo(() => relatos, [relatos]);
 
   return (
     <GestanteLayout>
-      {/* Top bar */}
-      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-100 px-6 py-3 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-slate-100 bg-white/90 px-6 py-3 backdrop-blur">
         <h1 className="text-base font-semibold text-slate-900">Meus relatos</h1>
         <button
           type="button"
-          onClick={() => setModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 active:scale-95 transition-all shadow-sm"
+          onClick={() => setCreateModalOpen(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-brand-700 active:scale-95"
           aria-label="Registrar novo relato"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           Novo relato
         </button>
       </header>
 
-      <div className="px-6 py-6 max-w-7xl mx-auto">
-        {/* Saudação */}
+      <div className="mx-auto max-w-7xl px-6 py-6">
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-slate-900">Histórico de relatos</h2>
-          <p className="text-sm text-slate-400 mt-0.5">Acompanhe todos os seus registros diários</p>
+          <h2 className="text-2xl font-bold text-slate-900">Historico de relatos</h2>
+          <p className="mt-0.5 text-sm text-slate-400">
+            Clique em um relato para abrir os detalhes, corrigir informacoes ou adicionar uma nota complementar.
+          </p>
         </div>
 
-        {/* Filtros de período */}
-        <div
-          role="tablist"
-          aria-label="Filtrar por período"
-          className="flex gap-2 flex-wrap mb-6"
-        >
-          {PERIODOS.map(p => (
+        <div role="tablist" aria-label="Filtrar por periodo" className="mb-6 flex flex-wrap gap-2">
+          {PERIODOS.map((periodOption) => (
             <button
-              key={p.value}
+              key={periodOption.value}
               role="tab"
               type="button"
-              aria-selected={periodo === p.value}
-              onClick={() => setPeriodo(p.value)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                periodo === p.value
+              aria-selected={periodo === periodOption.value}
+              onClick={() => setPeriodo(periodOption.value)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+                periodo === periodOption.value
                   ? 'bg-brand-600 text-white'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-700'
+                  : 'border border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-700'
               }`}
             >
-              {p.label}
+              {periodOption.label}
             </button>
           ))}
         </div>
 
-        {/* Conteúdo */}
         {loading ? (
-          <PageSpinner label="Carregando relatos…" />
+          <PageSpinner label="Carregando relatos..." />
         ) : error ? (
-          <div role="alert" className="rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm px-5 py-4 flex items-center justify-between">
+          <div role="alert" className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
             <span>{error}</span>
-            <button type="button" onClick={loadRelatos} className="text-xs font-semibold underline ml-4">
+            <button type="button" onClick={loadRelatos} className="ml-4 text-xs font-semibold underline">
               Tentar novamente
             </button>
           </div>
         ) : filtered.length === 0 ? (
           <Card>
             <CardBody className="py-16 text-center">
-              <svg className="w-10 h-10 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+              <svg className="mx-auto mb-3 h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
-              <p className="text-sm text-slate-400">Nenhum relato encontrado para o período selecionado.</p>
+              <p className="text-sm text-slate-400">Nenhum relato encontrado para o periodo selecionado.</p>
               <button
                 type="button"
-                onClick={() => setModalOpen(true)}
+                onClick={() => setCreateModalOpen(true)}
                 className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700"
               >
                 Registrar meu primeiro relato →
@@ -330,98 +430,185 @@ export function GestanteRelatos() {
           </Card>
         ) : (
           <>
-            {/* Tabela — desktop */}
             <div className="hidden sm:block">
               <Card>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-100">
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Data</th>
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Humor</th>
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Sintomas</th>
-                        <th className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Descrição</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Data</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Humor</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Sintomas</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Descricao</th>
+                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">Acao</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
-                      {filtered.map(r => (
-                        <tr key={r.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="px-5 py-3.5 font-medium text-slate-800 whitespace-nowrap">
-                            {formatDate(r.data)}
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <Badge variant={HUMOR_BADGE[r.humor]}>
-                              {r.humor.charAt(0).toUpperCase() + r.humor.slice(1)}
-                            </Badge>
-                          </td>
-                          <td className="px-5 py-3.5">
-                            <div className="flex flex-wrap gap-1">
-                              {r.sintomas?.slice(0, 3).map(s => (
-                                <Badge key={s} variant="neutral">{s}</Badge>
-                              ))}
-                              {(r.sintomas?.length ?? 0) > 3 && (
-                                <Badge variant="neutral">+{(r.sintomas?.length ?? 0) - 3}</Badge>
-                              )}
-                              {(!r.sintomas || r.sintomas.length === 0) && (
-                                <span className="text-slate-400 text-xs">Nenhum</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-5 py-3.5 text-slate-500 max-w-xs">
-                            <p className="truncate">{r.descricao || '—'}</p>
-                          </td>
-                        </tr>
-                      ))}
+                      {filtered.map((relato) => {
+                        const extraNote = getRelatoNote(relato.id);
+
+                        return (
+                          <tr
+                            key={relato.id}
+                            tabIndex={0}
+                            role="button"
+                            onClick={() => openRelato(relato)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                openRelato(relato);
+                              }
+                            }}
+                            className="cursor-pointer transition-colors hover:bg-slate-50/70 focus:bg-brand-50/60 focus:outline-none"
+                          >
+                            <td className="whitespace-nowrap px-5 py-3.5 font-medium text-slate-800">
+                              {formatDate(relato.data)}
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <Badge variant={HUMOR_BADGE[relato.humor]}>
+                                {relato.humor.charAt(0).toUpperCase() + relato.humor.slice(1)}
+                              </Badge>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <div className="flex flex-wrap gap-1">
+                                {relato.sintomas?.slice(0, 3).map((sintoma) => (
+                                  <Badge key={sintoma} variant="neutral">
+                                    {sintoma}
+                                  </Badge>
+                                ))}
+                                {(relato.sintomas?.length ?? 0) > 3 && (
+                                  <Badge variant="neutral">+{(relato.sintomas?.length ?? 0) - 3}</Badge>
+                                )}
+                                {(!relato.sintomas || relato.sintomas.length === 0) && (
+                                  <span className="text-xs text-slate-400">Nenhum</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="max-w-xs px-5 py-3.5 text-slate-500">
+                              <div className="max-w-xs">
+                                <p className="truncate">{relato.descricao || '—'}</p>
+                                {extraNote && (
+                                  <p className="mt-1 truncate text-xs text-brand-700">Nota complementar adicionada</p>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-5 py-3.5">
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700">
+                                Abrir
+                                <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                  <path fillRule="evenodd" d="M7.22 4.22a.75.75 0 011.06 0l5.25 5.25a.75.75 0 010 1.06l-5.25 5.25a.75.75 0 11-1.06-1.06L11.94 10 7.22 5.28a.75.75 0 010-1.06z" clipRule="evenodd" />
+                                </svg>
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </Card>
             </div>
 
-            {/* Cards — mobile */}
-            <div className="sm:hidden space-y-3">
-              {filtered.map(r => (
-                <Card key={r.id} hoverable>
-                  <CardBody>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-semibold text-slate-800">{formatDate(r.data)}</span>
-                      <Badge variant={HUMOR_BADGE[r.humor]}>
-                        {r.humor.charAt(0).toUpperCase() + r.humor.slice(1)}
-                      </Badge>
-                    </div>
-                    {r.descricao && (
-                      <p className="text-sm text-slate-500 mb-2 line-clamp-2">{r.descricao}</p>
-                    )}
-                    {r.sintomas && r.sintomas.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {r.sintomas.slice(0, 4).map(s => (
-                          <Badge key={s} variant="neutral">{s}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </CardBody>
-                </Card>
-              ))}
+            <div className="space-y-3 sm:hidden">
+              {filtered.map((relato) => {
+                const extraNote = getRelatoNote(relato.id);
+
+                return (
+                  <button
+                    key={relato.id}
+                    type="button"
+                    onClick={() => openRelato(relato)}
+                    className="block w-full text-left"
+                  >
+                    <Card hoverable>
+                      <CardBody>
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm font-semibold text-slate-800">{formatDate(relato.data)}</span>
+                          <Badge variant={HUMOR_BADGE[relato.humor]}>
+                            {relato.humor.charAt(0).toUpperCase() + relato.humor.slice(1)}
+                          </Badge>
+                        </div>
+
+                        {relato.descricao && (
+                          <p className="mb-2 line-clamp-2 text-sm text-slate-500">{relato.descricao}</p>
+                        )}
+
+                        {relato.sintomas && relato.sintomas.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {relato.sintomas.slice(0, 4).map((sintoma) => (
+                              <Badge key={sintoma} variant="neutral">
+                                {sintoma}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <span className="text-xs font-semibold text-brand-700">Toque para abrir</span>
+                          {extraNote && <Badge variant="info">Com nota</Badge>}
+                        </div>
+                      </CardBody>
+                    </Card>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}
       </div>
 
-      {/* Modal — novo relato */}
       <Modal
-        isOpen={isModalOpen}
-        onClose={() => setModalOpen(false)}
-        title="Novo relato diário"
+        isOpen={isCreateModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="Novo relato diario"
         maxWidth="max-w-xl"
       >
-        <NovoRelatoForm
-          onSave={handleSave}
-          onCancel={() => setModalOpen(false)}
-        />
+        <RelatoForm onSave={handleCreate} onCancel={() => setCreateModalOpen(false)} />
       </Modal>
 
-      {/* Toast de sucesso */}
-      {showToast && <SuccessToast onClose={() => setShowToast(false)} />}
+      <Modal
+        isOpen={selectedRelato !== null}
+        onClose={() => setSelectedRelato(null)}
+        title="Detalhes do relato"
+        maxWidth="max-w-2xl"
+      >
+        {selectedRelato && (
+          <div className="space-y-5">
+            <section className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{formatDate(selectedRelato.data)}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Ajuste o relato do dia e adicione uma nota com o que aconteceu depois.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={HUMOR_BADGE[selectedRelato.humor]}>
+                    {selectedRelato.humor.charAt(0).toUpperCase() + selectedRelato.humor.slice(1)}
+                  </Badge>
+                  {getRelatoNote(selectedRelato.id) && <Badge variant="info">Nota complementar salva</Badge>}
+                </div>
+              </div>
+            </section>
+
+            <RelatoForm
+              initialValues={{
+                data: selectedRelato.data,
+                humor: selectedRelato.humor,
+                sintomas: selectedRelato.sintomas,
+                descricao: selectedRelato.descricao,
+              }}
+              initialExtraNote={getRelatoNote(selectedRelato.id)}
+              saveLabel="Salvar alteracoes"
+              isEditing
+              onSave={handleUpdate}
+              onCancel={() => setSelectedRelato(null)}
+            />
+          </div>
+        )}
+      </Modal>
+
+      {toastMessage && <SuccessToast message={toastMessage} onClose={() => setToastMessage(null)} />}
     </GestanteLayout>
   );
 }

@@ -8,6 +8,7 @@ import { ConsentimentoLGPD } from '../pages/ConsentimentoLGPD';
 
 // Páginas gestante — novo design (sidebar escura, idêntico ao médico)
 import { GestanteDashboard }    from '../pages/gestante/GestanteDashboard';
+import { GestanteExames }       from '../pages/gestante/GestanteExames';
 import { GestanteRelatos }      from '../pages/gestante/GestanteRelatos';
 import { GestanteMedicamentos } from '../pages/gestante/GestanteMedicamentos';
 import { GestanteResumosIA }    from '../pages/gestante/GestanteResumosIA';
@@ -53,6 +54,14 @@ export function AppRoutes() {
             element={
               <ProtectedRoute requiredRole="gestante">
                 <GestanteDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gestante/exames"
+            element={
+              <ProtectedRoute requiredRole="gestante">
+                <GestanteExames />
               </ProtectedRoute>
             }
           />

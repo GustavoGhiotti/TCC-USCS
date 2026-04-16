@@ -31,17 +31,17 @@ function IconSparkles({ className }: { className?: string }) {
     </svg>
   );
 }
-function IconUser({ className }: { className?: string }) {
-  return (
-    <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  );
-}
 function IconLogout({ className }: { className?: string }) {
   return (
     <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+    </svg>
+  );
+}
+function IconChevronRight({ className }: { className?: string }) {
+  return (
+    <svg className={cn('w-4 h-4', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m9 6 6 6-6 6" />
     </svg>
   );
 }
@@ -79,11 +79,44 @@ function NavItem({ to, icon, label, end, onClick }: NavItemProps) {
   );
 }
 
+function AccountShortcut({ compact = false, onClick }: { compact?: boolean; onClick: () => void }) {
+  const { user } = useAuth();
+
+  if (!user) return null;
+
+  const summary = user.semanasGestacao ? `${user.semanasGestacao} semanas de gestacao` : 'Perfil gestante';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white text-left shadow-sm transition-colors hover:border-brand-200 hover:bg-brand-50/30',
+        compact ? 'px-2.5 py-2' : 'px-3 py-2.5',
+      )}
+    >
+      <div
+        className={cn(
+          'flex flex-shrink-0 items-center justify-center rounded-full bg-slate-100 font-semibold text-slate-700',
+          compact ? 'h-8 w-8 text-sm' : 'h-9 w-9 text-sm',
+        )}
+      >
+        {user.nomeCompleto?.charAt(0) ?? 'G'}
+      </div>
+      <div className={cn('min-w-0', compact ? 'hidden sm:block' : 'block')}>
+        <p className="truncate text-sm font-semibold text-slate-900">{user.nomeCompleto}</p>
+        <p className="truncate text-xs text-slate-500">{summary}</p>
+      </div>
+      <IconChevronRight className="flex-shrink-0 text-slate-400" />
+    </button>
+  );
+}
+
 interface SidebarProps {
   onNavigate?: () => void;
 }
 function GestanteSidebar({ onNavigate }: SidebarProps) {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   function handleLogout() {
@@ -110,23 +143,12 @@ function GestanteSidebar({ onNavigate }: SidebarProps) {
       <div className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
         <NavItem to="/gestante/dashboard" end icon={<IconGrid />} label="Dashboard" onClick={onNavigate} />
         <NavItem to="/gestante/relatos" icon={<IconDocument />} label="Relatos" onClick={onNavigate} />
+        <NavItem to="/gestante/exames" icon={<IconDocument />} label="Exames" onClick={onNavigate} />
         <NavItem to="/gestante/medicamentos" icon={<IconPill />} label="Medicamentos" onClick={onNavigate} />
         <NavItem to="/gestante/resumos-ia" icon={<IconSparkles />} label="Resumos IA" onClick={onNavigate} />
-        <NavItem to="/gestante/perfil" icon={<IconUser />} label="Perfil" onClick={onNavigate} />
       </div>
 
       <div className="border-t border-slate-800 px-3 py-4">
-        {user && (
-          <div className="flex items-center gap-2.5 px-3 mb-3">
-            <div className="w-8 h-8 rounded-full bg-slate-700 text-slate-300 font-semibold text-sm flex items-center justify-center flex-shrink-0" aria-hidden="true">
-              {user.nomeCompleto?.charAt(0) ?? 'G'}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm text-white font-medium truncate">{user.nomeCompleto}</p>
-              <p className="text-xs text-slate-400 truncate">{user.semanasGestacao ? `${user.semanasGestacao} semanas` : 'Gestante'}</p>
-            </div>
-          </div>
-        )}
         <button
           type="button"
           onClick={handleLogout}
@@ -146,6 +168,7 @@ interface GestanteLayoutProps {
 
 export function GestanteLayout({ children }: GestanteLayoutProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
@@ -153,21 +176,26 @@ export function GestanteLayout({ children }: GestanteLayoutProps) {
         <GestanteSidebar />
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="lg:hidden sticky top-0 z-20 h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setIsMenuOpen(true)}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 text-slate-700"
-            aria-label="Abrir menu"
-          >
-            <IconMenu />
-          </button>
-          <span className="text-sm font-semibold text-slate-800">GestaCare</span>
-          <span className="w-9" aria-hidden="true" />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-4 backdrop-blur">
+          <div className="flex h-14 items-center justify-between gap-3 lg:h-16 lg:px-2">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsMenuOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 lg:hidden"
+                aria-label="Abrir menu"
+              >
+                <IconMenu />
+              </button>
+              <span className="text-sm font-semibold text-slate-800 lg:hidden">GestaCare</span>
+            </div>
+
+            <AccountShortcut compact onClick={() => navigate('/gestante/perfil')} />
+          </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto" id="main-content">
+        <main className="flex-1 overflow-y-auto scrollbar-thin" id="main-content">
           {children}
         </main>
       </div>

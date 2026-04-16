@@ -1,6 +1,7 @@
 from app.models.alerta import Alerta, AlertaNota
 from app.models.consentimento import ConsentimentoLGPD
 from app.models.consulta import Consulta
+from app.models.exame_arquivo import ExameArquivo
 from app.models.gestante import Gestante
 from app.models.medicamento import Medicamento
 from app.models.orientacao import Orientacao
@@ -16,6 +17,7 @@ __all__ = [
     "RelatoDiario",
     "Medicamento",
     "Consulta",
+    "ExameArquivo",
     "Orientacao",
     "Prontuario",
     "ResumoIA",

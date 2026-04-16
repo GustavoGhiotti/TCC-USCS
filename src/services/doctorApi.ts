@@ -4,6 +4,7 @@ import type {
   AssistantSummary,
   DailyReport,
   KPIData,
+  MedicalExam,
   MedicalRecord,
   Medication,
   Patient,
@@ -118,6 +119,19 @@ type ResumoOut = {
   recomendacoes: string;
   status: 'pending' | 'approved';
   aprovadoEm?: string | null;
+};
+
+type ExameArquivoOut = {
+  id: string;
+  gestanteId: string;
+  titulo: string;
+  tipoExame?: string | null;
+  dataExame?: string | null;
+  observacoes?: string | null;
+  nomeArquivo: string;
+  mimeType: string;
+  tamanhoBytes: number;
+  enviadoEm: string;
 };
 
 export interface PatientDetailsBundle {
@@ -372,6 +386,21 @@ export async function fetchPatientDetailsBundle(id: string): Promise<PatientDeta
   };
 }
 
+function normalizeMedicalExam(item: ExameArquivoOut): MedicalExam {
+  return {
+    id: item.id,
+    patientId: item.gestanteId,
+    title: item.titulo,
+    examType: item.tipoExame ?? undefined,
+    examDate: item.dataExame ?? undefined,
+    notes: item.observacoes ?? undefined,
+    fileName: item.nomeArquivo,
+    mimeType: item.mimeType,
+    fileSizeBytes: item.tamanhoBytes,
+    uploadedAt: item.enviadoEm,
+  };
+}
+
 export async function updateDailyReport(reportId: string, payload: UpdateDailyReportInput): Promise<DailyReport> {
   const { data } = await api.patch<PatientDetailApi['reports'][number]>(`/medicos/relatos/${reportId}`, {
     clinicalPriority: payload.clinicalPriority,
@@ -456,6 +485,11 @@ export async function updatePrenatalProfile(
 export async function fetchPatientSummaries(patientId: string): Promise<ReviewedSummary[]> {
   const { data } = await api.get<ResumoOut[]>(`/medicos/pacientes/${patientId}/resumos-ia`);
   return data.map(normalizeReviewedSummary);
+}
+
+export async function fetchPatientExams(patientId: string): Promise<MedicalExam[]> {
+  const { data } = await api.get<ExameArquivoOut[]>(`/medicos/pacientes/${patientId}/exames`);
+  return data.map(normalizeMedicalExam);
 }
 
 export async function generatePatientSummary(patientId: string, start: string, end: string): Promise<ReviewedSummary> {

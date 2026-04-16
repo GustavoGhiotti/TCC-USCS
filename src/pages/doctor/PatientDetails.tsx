@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Ta
 import { PageSpinner, Spinner } from '../../components/ui/Spinner';
 import { Badge } from '../../components/ui/Badge';
 import {
-  type Patient, type DailyReport, type Medication, type PrenatalProfile,
+  type Patient, type DailyReport, type Medication, type PrenatalProfile, type MedicalExam,
   type MedicalRecord, type AssistantSummary, type TimelineEvent,
 } from '../../types/doctor';
 import {
@@ -18,6 +18,7 @@ import {
   deleteMedicalRecord,
   deleteMedication,
   fetchPatientDetailsBundle,
+  fetchPatientExams,
   fetchPatientSummaries,
   generatePatientSummary,
   updateDailyReport,
@@ -28,6 +29,7 @@ import {
 } from '../../services/doctorApi';
 import { formatDate, formatTime, relativeDate } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatExamSize, getExamDownloadUrl } from '../../services/examsService';
 
 // Mapa de ícones de tipo de evento
 function TimelineIcon({ type, hasFlag }: { type: TimelineEvent['type']; hasFlag: boolean }) {
@@ -2237,6 +2239,97 @@ function MedicamentosTab({ patientId, medications, onSuccess }: MedicamentosTabP
   );
 }
 
+function ExamesTab({ patientId }: { patientId: string }) {
+  const [exams, setExams] = useState<MedicalExam[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    fetchPatientExams(patientId)
+      .then(setExams)
+      .catch(() => setError('Nao foi possivel carregar os exames anexados pela paciente.'))
+      .finally(() => setLoading(false));
+  }, [patientId]);
+
+  if (loading) {
+    return <PageSpinner label="Carregando exames..." />;
+  }
+
+  if (error) {
+    return (
+      <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
+
+  return (
+    <section aria-label="Exames em PDF enviados pela paciente" className="space-y-4">
+      <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        PDFs enviados pela paciente para revisao clinica. Abra os arquivos conforme necessidade para avaliar exames anexados ao acompanhamento.
+      </div>
+
+      {exams.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-400 shadow-card">
+          Nenhum exame em PDF foi anexado pela paciente ate o momento.
+        </div>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {exams.map((exam) => (
+            <Card key={exam.id} className="rounded-2xl">
+              <CardBody className="pt-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-slate-900">{exam.title}</h3>
+                      {exam.examType && <Badge variant="info">{exam.examType}</Badge>}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {exam.examDate ? `Data do exame: ${formatDate(exam.examDate)}` : 'Data do exame nao informada'}
+                    </p>
+                  </div>
+                  <Badge variant="neutral">{formatExamSize(exam.fileSizeBytes)}</Badge>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Arquivo</p>
+                    <p className="mt-2 text-sm font-medium text-slate-800">{exam.fileName}</p>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Enviado em</p>
+                    <p className="mt-2 text-sm font-medium text-slate-800">{formatDate(exam.uploadedAt)}</p>
+                  </div>
+                </div>
+
+                {exam.notes && (
+                  <div className="mt-4 rounded-2xl border border-slate-100 bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Observacoes da paciente</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{exam.notes}</p>
+                  </div>
+                )}
+
+                <div className="mt-4 flex justify-end">
+                  <a
+                    href={getExamDownloadUrl(exam.id)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+                  >
+                    Abrir PDF
+                  </a>
+                </div>
+              </CardBody>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // Página principal
 export function PatientDetails() {
   const { id } = useParams<{ id: string }>();
@@ -2314,6 +2407,7 @@ export function PatientDetails() {
             <TabsTrigger value="resumos-ia">Resumos IA</TabsTrigger>
             <TabsTrigger value="prontuario">Prontuário</TabsTrigger>
             <TabsTrigger value="medicamentos">Medicamentos</TabsTrigger>
+            <TabsTrigger value="exames">Exames</TabsTrigger>
             <TabsTrigger value="perfil">Perfil</TabsTrigger>
           </TabsList>
 
@@ -2356,6 +2450,10 @@ export function PatientDetails() {
               medications={meds}
               onSuccess={setToast}
             />
+          </TabsContent>
+
+          <TabsContent value="exames">
+            <ExamesTab patientId={patient.id} />
           </TabsContent>
         </Tabs>
       </div>

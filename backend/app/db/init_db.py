@@ -4,6 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from pathlib import Path
 
 from app.core.security import get_password_hash
 from app.db import base  # noqa: F401
@@ -11,6 +12,7 @@ from app.db.session import engine
 from app.models.alerta import Alerta
 from app.models.base import Base
 from app.models.consulta import Consulta
+from app.models.exame_arquivo import ExameArquivo
 from app.models.gestante import Gestante
 from app.models.medicamento import Medicamento
 from app.models.orientacao import Orientacao
@@ -53,8 +55,15 @@ def init_db() -> None:
 
 
 def seed_db(db: Session) -> None:
+    uploads_dir = Path(__file__).resolve().parents[1] / "uploads" / "exames"
+    if uploads_dir.exists():
+        for item in uploads_dir.iterdir():
+            if item.is_file():
+                item.unlink()
+
     db.execute(text("DELETE FROM alertas_notas"))
     db.execute(text("DELETE FROM alertas"))
+    db.execute(text("DELETE FROM exames_arquivos"))
     db.execute(text("DELETE FROM resumos_ia"))
     db.execute(text("DELETE FROM prontuarios"))
     db.execute(text("DELETE FROM orientacoes"))

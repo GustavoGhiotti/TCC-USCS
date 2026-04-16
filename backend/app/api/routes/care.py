@@ -1,7 +1,11 @@
+import base64
+import binascii
 import json
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy import and_, desc, func, select
 from sqlalchemy.orm import Session
 
@@ -9,6 +13,7 @@ from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.alerta import Alerta, AlertaNota
 from app.models.consulta import Consulta
+from app.models.exame_arquivo import ExameArquivo
 from app.models.gestante import Gestante
 from app.models.medicamento import Medicamento
 from app.models.orientacao import Orientacao
@@ -25,6 +30,8 @@ from app.schemas.care import (
     CadastroGestanteOut,
     ConsultaIn,
     ConsultaOut,
+    ExameArquivoIn,
+    ExameArquivoOut,
     MedicoKPIOut,
     MedicoPacienteOut,
     MedicamentoIn,
@@ -42,6 +49,9 @@ from app.schemas.care import (
 )
 
 router = APIRouter(tags=["Care"])
+
+UPLOADS_DIR = Path(__file__).resolve().parents[3] / "uploads" / "exames"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _require_role(user: User, role: str):
@@ -127,6 +137,28 @@ def _get_relato_by_id(db: Session, relato_id: str) -> RelatoDiario:
     if not relato:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Relato nao encontrado.")
     return relato
+
+
+def _get_exame_by_id(db: Session, exame_id: str) -> ExameArquivo:
+    exame = db.scalar(select(ExameArquivo).where(ExameArquivo.id == exame_id))
+    if not exame:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exame nao encontrado.")
+    return exame
+
+
+def _map_exame_out(exame: ExameArquivo) -> ExameArquivoOut:
+    return ExameArquivoOut(
+        id=exame.id,
+        gestanteId=exame.gestante_id,
+        titulo=exame.titulo,
+        tipoExame=exame.tipo_exame,
+        dataExame=exame.data_exame,
+        observacoes=exame.observacoes,
+        nomeArquivo=exame.nome_arquivo,
+        mimeType=exame.mime_type,
+        tamanhoBytes=exame.tamanho_bytes,
+        enviadoEm=exame.created_at,
+    )
 
 
 def _map_relato_detail_out(relato: RelatoDiario, gestante_id: str) -> dict:
@@ -327,6 +359,94 @@ def create_orientacao(payload: OrientacaoIn, current_user: User = Depends(get_cu
     db.commit()
     db.refresh(o)
     return OrientacaoOut(id=o.id, gestanteId=o.gestante_id, medicoId=o.medico_id, data=o.data.date(), texto=o.texto)
+
+
+@router.get("/exames/me", response_model=list[ExameArquivoOut])
+def exames_me(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_role(current_user, "gestante")
+    gestante = _get_gestante_by_user(db, current_user.id)
+    exames = list(
+        db.scalars(
+            select(ExameArquivo)
+            .where(ExameArquivo.gestante_id == gestante.id)
+            .order_by(desc(ExameArquivo.data_exame), desc(ExameArquivo.created_at))
+        )
+    )
+    return [_map_exame_out(item) for item in exames]
+
+
+@router.post("/exames", response_model=ExameArquivoOut, status_code=status.HTTP_201_CREATED)
+def create_exame(payload: ExameArquivoIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_role(current_user, "gestante")
+    gestante = _get_gestante_by_user(db, current_user.id)
+
+    if payload.mimeType != "application/pdf":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Apenas arquivos PDF sao permitidos.")
+
+    raw_base64 = payload.conteudoBase64.split(",", 1)[-1]
+    try:
+        content = base64.b64decode(raw_base64, validate=True)
+    except (binascii.Error, ValueError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Conteudo do arquivo invalido.")
+
+    if not content.startswith(b"%PDF"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O arquivo enviado nao parece ser um PDF valido.")
+
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O PDF excede o limite de 10 MB.")
+
+    saved_name = f"{gestante.id}-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}-{Path(payload.nomeArquivo).name}"
+    file_path = UPLOADS_DIR / saved_name
+    file_path.write_bytes(content)
+
+    exame = ExameArquivo(
+        gestante_id=gestante.id,
+        uploaded_by_user_id=current_user.id,
+        titulo=payload.titulo.strip(),
+        tipo_exame=payload.tipoExame.strip() if payload.tipoExame else None,
+        data_exame=payload.dataExame,
+        observacoes=payload.observacoes.strip() if payload.observacoes else None,
+        nome_arquivo=Path(payload.nomeArquivo).name,
+        nome_arquivo_salvo=saved_name,
+        mime_type=payload.mimeType,
+        tamanho_bytes=len(content),
+    )
+    db.add(exame)
+    db.commit()
+    db.refresh(exame)
+    return _map_exame_out(exame)
+
+
+@router.get("/medicos/pacientes/{gestante_id}/exames", response_model=list[ExameArquivoOut])
+def medico_list_exames(gestante_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_role(current_user, "medico")
+    _get_gestante_by_id(db, gestante_id)
+    exames = list(
+        db.scalars(
+            select(ExameArquivo)
+            .where(ExameArquivo.gestante_id == gestante_id)
+            .order_by(desc(ExameArquivo.data_exame), desc(ExameArquivo.created_at))
+        )
+    )
+    return [_map_exame_out(item) for item in exames]
+
+
+@router.get("/exames/{exame_id}/download")
+def download_exame(exame_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    exame = _get_exame_by_id(db, exame_id)
+
+    if current_user.role == "gestante":
+        gestante = _get_gestante_by_user(db, current_user.id)
+        if exame.gestante_id != gestante.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado para esse exame.")
+    elif current_user.role != "medico":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado para esse exame.")
+
+    file_path = UPLOADS_DIR / exame.nome_arquivo_salvo
+    if not file_path.exists():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Arquivo do exame nao encontrado.")
+
+    return FileResponse(path=file_path, media_type=exame.mime_type, filename=exame.nome_arquivo)
 
 
 @router.get("/prontuarios/me", response_model=list[ProntuarioOut])
