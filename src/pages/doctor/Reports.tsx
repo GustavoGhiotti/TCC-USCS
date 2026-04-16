@@ -1,45 +1,79 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DoctorLayout } from '../../components/layout/DoctorLayout';
 import { AlertBadge } from '../../components/doctor/AlertBadge';
-import { LineChart } from '../../components/charts/LineChart';
 import { HorizontalBarChart } from '../../components/charts/HorizontalBarChart';
-import { KPISkeleton, ChartSkeleton, Skeleton } from '../../components/ui/Skeleton';
-import { type ReportData, type ReportPeriod } from '../../types/alerts';
-import { fetchReportData } from '../../services/doctorApi';
+import { LineChart } from '../../components/charts/LineChart';
+import { Badge } from '../../components/ui/Badge';
+import { ChartSkeleton, KPISkeleton, Skeleton } from '../../components/ui/Skeleton';
 import { exportToCsv } from '../../lib/exportCsv';
 import { relativeDate } from '../../lib/utils';
+import { fetchReportData } from '../../services/doctorApi';
+import { type ReportData, type ReportPeriod } from '../../types/alerts';
 
-// ─── KPI Card ────────────────────────────────────────────────────────────────
-function StatCard({ label, value, sub, iconBg, icon }: {
-  label: string; value: number | string; sub?: string; iconBg: string; icon: React.ReactNode;
+function StatCard({
+  label,
+  value,
+  sub,
+  iconBg,
+  icon,
+}: {
+  label: string;
+  value: number | string;
+  sub?: string;
+  iconBg: string;
+  icon: ReactNode;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 flex items-start gap-4">
-      <div className={`${iconBg} rounded-xl p-3 flex-shrink-0`} aria-hidden="true">{icon}</div>
-      <div>
-        <p className="text-sm text-slate-500">{label}</p>
-        <p className="text-3xl font-bold tabular-nums mt-0.5 text-slate-900">{value}</p>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+      <div className="flex items-start gap-4">
+        <div className={`rounded-xl p-3 ${iconBg}`} aria-hidden="true">{icon}</div>
+        <div className="min-w-0">
+          <p className="text-sm text-slate-500">{label}</p>
+          <p className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{value}</p>
+          {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Period selector ─────────────────────────────────────────────────────────
-const PERIODS: { value: ReportPeriod; label: string }[] = [
-  { value: '7d',  label: 'Últimos 7 dias'  },
-  { value: '30d', label: 'Últimos 30 dias' },
-  { value: '90d', label: 'Últimos 90 dias' },
-];
+function InsightCard({
+  title,
+  tone,
+  children,
+}: {
+  title: string;
+  tone: 'danger' | 'warning' | 'info';
+  children: ReactNode;
+}) {
+  const toneMap = {
+    danger: 'border-red-200 bg-red-50/70 text-red-900',
+    warning: 'border-amber-200 bg-amber-50/70 text-amber-900',
+    info: 'border-blue-200 bg-blue-50/70 text-blue-900',
+  };
 
-// ─── Toast ────────────────────────────────────────────────────────────────────
-function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
-  useEffect(() => { const t = setTimeout(onDismiss, 3000); return () => clearTimeout(t); }, [onDismiss]);
   return (
-    <div role="status" aria-live="polite"
-      className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-modal">
-      <svg className="w-4 h-4 text-brand-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+    <div className={`rounded-2xl border p-4 ${toneMap[tone]}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide">{title}</p>
+      <div className="mt-2 text-sm leading-relaxed">{children}</div>
+    </div>
+  );
+}
+
+function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  useEffect(() => {
+    const timeout = setTimeout(onDismiss, 3000);
+    return () => clearTimeout(timeout);
+  }, [onDismiss]);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm text-white shadow-modal"
+    >
+      <svg className="h-4 w-4 flex-shrink-0 text-brand-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
         <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
       </svg>
       {message}
@@ -47,51 +81,95 @@ function Toast({ message, onDismiss }: { message: string; onDismiss: () => void 
   );
 }
 
-// ─── Página ───────────────────────────────────────────────────────────────────
+const PERIODS: { value: ReportPeriod; label: string }[] = [
+  { value: '7d', label: 'Ultimos 7 dias' },
+  { value: '30d', label: 'Ultimos 30 dias' },
+  { value: '90d', label: 'Ultimos 90 dias' },
+];
+
+const LEVEL_MAP: Record<string, 'none' | 'low' | 'medium' | 'high'> = {
+  none: 'none',
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+};
+
 export function DoctorReports() {
   const navigate = useNavigate();
 
-  const [period,  setPeriod]  = useState<ReportPeriod>('30d');
-  const [data,    setData]    = useState<ReportData | null>(null);
+  const [period, setPeriod] = useState<ReportPeriod>('30d');
+  const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [toast,   setToast]   = useState<string | null>(null);
-  const [copied,  setCopied]  = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const loadData = useCallback((p: ReportPeriod) => {
+  useEffect(() => {
     setLoading(true);
-    fetchReportData(p)
+    fetchReportData(period)
       .then(setData)
       .finally(() => setLoading(false));
-  }, []);
+  }, [period]);
 
-  useEffect(() => { loadData(period); }, [period, loadData]);
+  const derived = useMemo(() => {
+    if (!data) return null;
 
-  // CSV export
+    const patientsWithAlerts = data.patientSummary.filter((patient) => patient.alertCount > 0);
+    const patientsWithoutReports = data.patientSummary.filter((patient) => patient.reportCount === 0);
+    const avgReportsPerPatient = data.kpi.activePatients > 0
+      ? Number((data.kpi.totalReports / data.kpi.activePatients).toFixed(1))
+      : 0;
+    const attentionLoad = data.kpi.activePatients > 0
+      ? Math.round((patientsWithAlerts.length / data.kpi.activePatients) * 100)
+      : 0;
+    const highPriorityPatients = [...data.patientSummary]
+      .sort((a, b) => {
+        const levelOrder = { high: 3, medium: 2, low: 1, none: 0 };
+        const levelDiff = levelOrder[b.alertLevel] - levelOrder[a.alertLevel];
+        if (levelDiff !== 0) return levelDiff;
+        if (b.alertCount !== a.alertCount) return b.alertCount - a.alertCount;
+        if (b.reportCount !== a.reportCount) return b.reportCount - a.reportCount;
+        return a.name.localeCompare(b.name);
+      });
+
+    return {
+      patientsWithAlerts,
+      patientsWithoutReports,
+      avgReportsPerPatient,
+      attentionLoad,
+      highPriorityPatients,
+      topPatients: highPriorityPatients.slice(0, 5),
+      alertTypeChart: data.alertTypeDist.map((item) => ({
+        label: item.type,
+        value: item.count,
+        color: item.count >= 3 ? '#dc2626' : '#d97706',
+      })),
+    };
+  }, [data]);
+
   function handleExportCSV() {
     if (!data) return;
-    const rows = data.patientSummary.map(p => ({
-      'Paciente':          p.name,
-      'IG':               p.ig ?? '—',
-      'Relatos':          p.reportCount,
-      'Alertas':          p.alertCount,
-      'Nível de atenção': p.alertLevel,
-      'Último registro':  p.lastRecord ? relativeDate(p.lastRecord) : '—',
+    const rows = data.patientSummary.map((patient) => ({
+      Paciente: patient.name,
+      IG: patient.ig ?? '-',
+      Relatos: patient.reportCount,
+      Alertas: patient.alertCount,
+      Nivel_atencao: patient.alertLevel,
+      Ultimo_registro: patient.lastRecord ? relativeDate(patient.lastRecord) : '-',
     }));
-    exportToCsv(`gestacao-relatorios-${period}`, rows);
-    setToast('Arquivo CSV exportado com sucesso.');
+    exportToCsv(`relatorio-operacional-${period}`, rows);
+    setToast('CSV exportado com sucesso.');
   }
 
-  // Resumo texto
   function buildSummaryText(): string {
-    if (!data) return '';
-    const label = PERIODS.find(p => p.value === period)?.label ?? period;
+    if (!data || !derived) return '';
+    const periodLabel = PERIODS.find((item) => item.value === period)?.label ?? period;
     return [
-      `Período: ${label}`,
+      `Periodo: ${periodLabel}`,
       `Pacientes ativos: ${data.kpi.activePatients}`,
-      `Total de relatos: ${data.kpi.totalReports}`,
-      `Total de alertas: ${data.kpi.totalAlerts}`,
+      `Pacientes com alerta: ${derived.patientsWithAlerts.length}`,
+      `Sem relato no periodo: ${derived.patientsWithoutReports.length}`,
+      `Media de relatos por paciente: ${derived.avgReportsPerPatient}`,
       `Alertas revisados: ${data.kpi.reviewedPct}%`,
-      `Gerado em: ${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
     ].join(' | ');
   }
 
@@ -99,218 +177,233 @@ export function DoctorReports() {
     try {
       await navigator.clipboard.writeText(buildSummaryText());
       setCopied(true);
-      setToast('Texto copiado para a área de transferência.');
+      setToast('Resumo copiado.');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      setToast('Não foi possível copiar. Tente manualmente.');
+      setToast('Nao foi possivel copiar o resumo.');
     }
   }
 
-  // Dados para os gráficos
-  const chartLabels   = data?.reportsPerDay.map(d => d.date) ?? [];
-  const reportsValues = data?.reportsPerDay.map(d => d.value) ?? [];
-  const highValues    = data?.alertsHighPerDay.map(d => d.value) ?? [];
-  const medValues     = data?.alertsMediumPerDay.map(d => d.value) ?? [];
-  const lowValues     = data?.alertsLowPerDay.map(d => d.value) ?? [];
-
-  const barData = (data?.alertTypeDist ?? []).map(t => ({
-    label: t.type,
-    value: t.count,
-  }));
-
-  const LEVEL_MAP: Record<string, 'none' | 'low' | 'medium' | 'high'> = {
-    none: 'none', low: 'low', medium: 'medium', high: 'high',
-  };
+  const chartLabels = data?.reportsPerDay.map((item) => item.date) ?? [];
+  const reportValues = data?.reportsPerDay.map((item) => item.value) ?? [];
+  const highValues = data?.alertsHighPerDay.map((item) => item.value) ?? [];
+  const mediumValues = data?.alertsMediumPerDay.map((item) => item.value) ?? [];
+  const lowValues = data?.alertsLowPerDay.map((item) => item.value) ?? [];
 
   return (
     <DoctorLayout>
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-100 px-6 py-4 flex items-center justify-between gap-4">
-        <h1 className="text-xl font-bold text-slate-900">Relatórios</h1>
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-slate-100 bg-white/90 px-6 py-4 backdrop-blur">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Relatorios operacionais</h1>
+          <p className="mt-0.5 text-sm text-slate-400">
+            Prioridades por paciente, adesao de relatos e exportacao da carteira.
+          </p>
+        </div>
 
         <div className="flex items-center gap-3">
-          {/* Seletor de período */}
-          <fieldset>
-            <legend className="sr-only">Período do relatório</legend>
-            <div
-              role="group"
-              className="flex gap-1 bg-slate-100 rounded-xl p-1"
-            >
-              {PERIODS.map(p => (
-                <button
-                  key={p.value}
-                  type="button"
-                  aria-pressed={period === p.value}
-                  onClick={() => setPeriod(p.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                    period === p.value
-                      ? 'bg-white text-slate-900 shadow-card'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          <div role="group" aria-label="Periodo do relatorio" className="flex gap-1 rounded-xl bg-slate-100 p-1">
+            {PERIODS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                aria-pressed={period === item.value}
+                onClick={() => setPeriod(item.value)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  period === item.value ? 'bg-white text-slate-900 shadow-card' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
 
-          {/* Export CSV */}
           <button
             type="button"
             onClick={handleExportCSV}
             disabled={loading || !data}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:border-brand-300 hover:text-brand-700 disabled:opacity-50 transition-colors"
-            aria-label="Exportar dados em CSV"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-600 transition-colors hover:border-brand-300 hover:text-brand-700 disabled:opacity-50"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
             </svg>
             Exportar CSV
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="px-6 py-6 max-w-7xl mx-auto flex flex-col gap-8">
-
-        {/* ─── 1. KPIs ───────────────────────────────────────────────────────── */}
-        <section aria-label="Indicadores do período">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-6">
+        <section aria-label="Indicadores operacionais">
           {loading ? (
             <KPISkeleton count={4} />
-          ) : data ? (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          ) : data && derived ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
-                label="Acompanhamentos ativos" value={data.kpi.activePatients}
-                iconBg="bg-brand-50"
-                icon={<svg className="w-6 h-6 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" /></svg>}
+                label="Pacientes que pedem revisao"
+                value={derived.patientsWithAlerts.length}
+                sub={`${derived.attentionLoad}% da carteira no periodo`}
+                iconBg="bg-red-50 text-red-600"
+                icon={<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12v-.008zm-8.303-.624c-.866 1.5.217 3.374 1.948 3.374h12.71c1.73 0 2.813-1.874 1.948-3.374L13.95 4.378c-.866-1.5-3.032-1.5-3.898 0L3.697 16.126z" /></svg>}
               />
               <StatCard
-                label="Total de relatos" value={data.kpi.totalReports} sub={`no período (${period})`}
-                iconBg="bg-blue-50"
-                icon={<svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>}
+                label="Sem relato no periodo"
+                value={derived.patientsWithoutReports.length}
+                sub="pacientes sem retorno recente"
+                iconBg="bg-amber-50 text-amber-600"
+                icon={<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2.25M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
               />
               <StatCard
-                label="Total de alertas" value={data.kpi.totalAlerts} sub={`no período (${period})`}
-                iconBg="bg-amber-50"
-                icon={<svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>}
+                label="Media de relatos"
+                value={derived.avgReportsPerPatient}
+                sub="por paciente ativa"
+                iconBg="bg-blue-50 text-blue-600"
+                icon={<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" /></svg>}
               />
               <StatCard
-                label="Alertas revisados" value={`${data.kpi.reviewedPct}%`} sub="do total no período"
-                iconBg="bg-emerald-50"
-                icon={<svg className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                label="Taxa de revisao"
+                value={`${data.kpi.reviewedPct}%`}
+                sub="alertas ja avaliados"
+                iconBg="bg-emerald-50 text-emerald-600"
+                icon={<svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
               />
             </div>
           ) : null}
         </section>
 
-        {/* ─── 2. Gráficos ───────────────────────────────────────────────────── */}
-        <section aria-label="Tendências do período">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">Tendências</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <section aria-label="Leituras prioritarias">
+          {loading ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <ChartSkeleton height={140} />
+              <ChartSkeleton height={140} />
+              <ChartSkeleton height={140} />
+            </div>
+          ) : data && derived ? (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <InsightCard title="Foco clinico imediato" tone="danger">
+                {derived.topPatients[0]
+                  ? <>
+                      <p className="font-semibold">{derived.topPatients[0].name}</p>
+                      <p className="mt-1">
+                        {derived.topPatients[0].alertCount} alerta(s), {derived.topPatients[0].reportCount} relato(s)
+                        {derived.topPatients[0].lastRecord ? ` e ultimo registro ${relativeDate(derived.topPatients[0].lastRecord)}.` : '.'}
+                      </p>
+                    </>
+                  : 'Nenhuma paciente com demanda critica no periodo.'}
+              </InsightCard>
 
-            {/* Relatos por dia */}
-            {loading ? (
-              <ChartSkeleton height={200} />
-            ) : data ? (
-              <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
-                <LineChart
-                  title="Relatos por dia"
-                  labels={chartLabels}
-                  datasets={[{ label: 'Relatos', color: '#0d9488', values: reportsValues }]}
-                  ariaLabel={`Relatos diários no período ${period}. Máx: ${Math.max(...reportsValues)}.`}
-                />
-              </div>
-            ) : null}
+              <InsightCard title="Busca ativa recomendada" tone="warning">
+                {derived.patientsWithoutReports.length > 0
+                  ? `${derived.patientsWithoutReports.length} paciente(s) ficaram sem relato no periodo. Essa lista deve orientar contato ativo e revisao de adesao.`
+                  : 'Todas as pacientes tiveram pelo menos um relato no periodo.'}
+              </InsightCard>
 
-            {/* Alertas por severidade */}
-            {loading ? (
-              <ChartSkeleton height={200} />
-            ) : data ? (
-              <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
-                <LineChart
-                  title="Alertas por severidade"
-                  labels={chartLabels}
-                  datasets={[
-                    { label: 'Alta atenção',     color: '#dc2626', values: highValues },
-                    { label: 'Atenção moderada', color: '#d97706', values: medValues  },
-                    { label: 'Baixa atenção',    color: '#2563eb', values: lowValues  },
-                  ]}
-                  ariaLabel="Alertas diários separados por nível de atenção."
-                />
-              </div>
-            ) : null}
+              <InsightCard title="Uso pratico da tela" tone="info">
+                Use esta pagina para decidir quem abrir primeiro, acompanhar volume de alertas e exportar a carteira para discussao de equipe ou passagem de caso.
+              </InsightCard>
+            </div>
+          ) : null}
+        </section>
 
-            {/* Tipos de alerta (barra horizontal) */}
+        <section aria-label="Tendencias do periodo">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {loading ? (
               <ChartSkeleton height={220} />
             ) : data ? (
-              <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 lg:col-span-2">
-                <HorizontalBarChart
-                  title="Principais tipos de alerta no período"
-                  data={barData}
-                  ariaLabel="Distribuição de alertas por tipo."
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+                <LineChart
+                  title="Volume diario de relatos"
+                  labels={chartLabels}
+                  datasets={[{ label: 'Relatos', color: '#0d9488', values: reportValues }]}
+                  ariaLabel={`Volume diario de relatos no periodo ${period}.`}
+                />
+              </div>
+            ) : null}
+
+            {loading ? (
+              <ChartSkeleton height={220} />
+            ) : data ? (
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+                <LineChart
+                  title="Evolucao dos alertas por severidade"
+                  labels={chartLabels}
+                  datasets={[
+                    { label: 'Alta atencao', color: '#dc2626', values: highValues },
+                    { label: 'Atencao moderada', color: '#d97706', values: mediumValues },
+                    { label: 'Baixa atencao', color: '#2563eb', values: lowValues },
+                  ]}
+                  ariaLabel="Tendencia dos alertas por severidade."
                 />
               </div>
             ) : null}
           </div>
         </section>
 
-        {/* ─── 3. Tabela por paciente ─────────────────────────────────────────── */}
-        <section aria-label="Resumo por paciente">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">Por paciente</h2>
+        <section aria-label="Fila de pacientes">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-800">Pacientes para priorizar</h2>
+              <p className="mt-0.5 text-sm text-slate-400">
+                Lista ordenada por nivel de atencao, quantidade de alertas e volume de relatos.
+              </p>
+            </div>
+            {!loading && derived && (
+              <Badge variant="warning">{derived.patientsWithAlerts.length} com alerta</Badge>
+            )}
+          </div>
 
           {loading ? (
-            <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
-              <div className="bg-slate-50 px-4 py-3 border-b border-slate-100">
+            <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-card">
+              <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
                 <Skeleton className="h-3 w-full max-w-lg" />
               </div>
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="px-4 py-3 border-b border-slate-50 flex gap-4">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="flex gap-4 border-b border-slate-50 px-4 py-3">
                   <Skeleton className="h-4 flex-1" />
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-12" />
+                  <Skeleton className="h-4 w-20" />
                   <Skeleton className="h-4 w-12" />
                   <Skeleton className="h-4 w-20" />
                 </div>
               ))}
             </div>
-          ) : data ? (
-            <div className="overflow-x-auto rounded-xl border border-slate-100 shadow-card">
+          ) : data && derived ? (
+            <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white shadow-card">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-100">
-                    {['Paciente', 'IG', 'Relatos', 'Alertas', 'Último registro', 'Status', ''].map(h => (
-                      <th key={h} scope="col" className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                        {h}
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    {['Paciente', 'IG', 'Relatos', 'Alertas', 'Ultimo registro', 'Status', 'Acao'].map((header) => (
+                      <th key={header} scope="col" className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {header}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
-                  {data.patientSummary.map(p => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                  {derived.highPriorityPatients.map((patient) => (
+                    <tr key={patient.id} className="transition-colors hover:bg-slate-50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-brand-100 text-brand-700 font-semibold text-xs flex items-center justify-center flex-shrink-0">
-                            {p.name.charAt(0)}
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
+                            {patient.name.charAt(0)}
                           </div>
-                          <span className="text-sm font-medium text-slate-800 truncate max-w-[160px]">{p.name}</span>
+                          <div>
+                            <p className="font-medium text-slate-800">{patient.name}</p>
+                            {patient.reportCount === 0 && <p className="text-xs text-amber-600">Sem relato no periodo</p>}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-600 tabular-nums">{p.ig ?? '—'}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-700 tabular-nums">{p.reportCount}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-slate-700 tabular-nums">{p.alertCount}</td>
-                      <td className="px-4 py-3 text-xs text-slate-500">{p.lastRecord ? relativeDate(p.lastRecord) : '—'}</td>
+                      <td className="px-4 py-3 tabular-nums text-slate-600">{patient.ig ?? '-'}</td>
+                      <td className="px-4 py-3 font-semibold tabular-nums text-slate-700">{patient.reportCount}</td>
+                      <td className="px-4 py-3 font-semibold tabular-nums text-slate-700">{patient.alertCount}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{patient.lastRecord ? relativeDate(patient.lastRecord) : '-'}</td>
                       <td className="px-4 py-3">
-                        <AlertBadge level={LEVEL_MAP[p.alertLevel] ?? 'none'} />
+                        <AlertBadge level={LEVEL_MAP[patient.alertLevel] ?? 'none'} />
                       </td>
                       <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => navigate(`/doctor/patients/${p.id}`)}
-                          className="px-2.5 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
-                          aria-label={`Abrir detalhes de ${p.name}`}
+                          onClick={() => navigate(`/doctor/patients/${patient.id}`)}
+                          className="rounded-lg bg-brand-50 px-2.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100"
                         >
-                          Abrir
+                          Abrir paciente
                         </button>
                       </td>
                     </tr>
@@ -321,72 +414,59 @@ export function DoctorReports() {
           ) : null}
         </section>
 
-        {/* ─── 4. Resumo para envio ──────────────────────────────────────────── */}
-        <section aria-label="Resumo para envio">
-          <h2 className="text-base font-semibold text-slate-800 mb-4">Resumo para envio</h2>
-          <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+        <section aria-label="Padroes de alerta e compartilhamento">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.3fr_1fr]">
             {loading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
+              <ChartSkeleton height={250} />
+            ) : derived ? (
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+                <HorizontalBarChart
+                  title="Tipos de alerta mais frequentes"
+                  data={derived.alertTypeChart}
+                  ariaLabel="Distribuicao dos tipos de alerta mais frequentes no periodo."
+                />
               </div>
-            ) : data ? (
-              <>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-                  Texto gerado automaticamente
-                </p>
-                <div
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 leading-relaxed mb-4 font-mono break-all"
-                  aria-label="Resumo gerado para envio"
-                >
-                  {buildSummaryText()}
-                </div>
-                <p className="text-xs text-slate-400 mb-4">
-                  ⓘ Este resumo contém apenas dados quantitativos do período. Não inclui informações clínicas ou interpretativas.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-slate-100 rounded-xl hover:bg-slate-200 transition-colors"
-                    aria-label="Copiar texto do resumo"
-                  >
-                    {copied ? (
-                      <svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                      </svg>
-                    )}
-                    {copied ? 'Copiado!' : 'Copiar'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportCSV}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-xl hover:bg-brand-700 transition-colors"
-                    aria-label="Baixar relatório em CSV"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                    </svg>
-                    Baixar CSV
-                  </button>
-                </div>
-              </>
             ) : null}
+
+            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-card">
+              <h2 className="text-base font-semibold text-slate-800">Resumo para equipe</h2>
+              {loading ? (
+                <div className="mt-4 space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+              ) : data && derived ? (
+                <>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Texto curto para passagem de plantao, reuniao de equipe ou registro administrativo.
+                  </p>
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm leading-relaxed text-slate-700">
+                    {buildSummaryText()}
+                  </div>
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200"
+                    >
+                      {copied ? 'Copiado!' : 'Copiar resumo'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportCSV}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+                    >
+                      Baixar CSV
+                    </button>
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
         </section>
-
       </div>
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </DoctorLayout>
   );
 }
-
-// Helper (usado na tabela)
-const LEVEL_MAP: Record<string, 'none' | 'low' | 'medium' | 'high'> = {
-  none: 'none', low: 'low', medium: 'medium', high: 'high',
-};

@@ -22,6 +22,7 @@ import { PatientDetails }      from '../pages/doctor/PatientDetails';
 import { DoctorAlerts }        from '../pages/doctor/Alerts';
 import { DoctorReports }       from '../pages/doctor/Reports';
 import { IndicadoresUnidade }  from '../pages/doctor/IndicadoresUnidade';
+import { DoctorProfile }       from '../pages/doctor/DoctorProfile';
 
 // Placeholder legado gestante
 import { PatientHome } from '../pages/patient/PatientHome';
@@ -140,6 +141,14 @@ export function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/doctor/profile"
+            element={
+              <ProtectedRoute requiredRole="medico">
+                <DoctorProfile />
+              </ProtectedRoute>
+            }
+          />
 
           {/* ─── Médico — legado (redireciona para novo design) ─────────────── */}
           <Route path="/medico/dashboard"    element={<Navigate to="/doctor"             replace />} />
@@ -147,6 +156,7 @@ export function AppRoutes() {
           <Route path="/medico/alertas"      element={<Navigate to="/doctor/alerts"      replace />} />
           <Route path="/medico/relatorios"   element={<Navigate to="/doctor/reports"     replace />} />
           <Route path="/medico/indicadores"  element={<Navigate to="/doctor/indicators"  replace />} />
+          <Route path="/medico/perfil"       element={<Navigate to="/doctor/profile"     replace />} />
 
           {/* ─── Gestante — placeholder legado ──────────────────────────────── */}
           <Route

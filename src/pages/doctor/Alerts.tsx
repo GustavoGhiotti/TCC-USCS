@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type KeyboardEvent, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DoctorLayout } from '../../components/layout/DoctorLayout';
 import { AlertBadge } from '../../components/doctor/AlertBadge';
-import { Drawer } from '../../components/ui/Drawer';
 import { Modal } from '../../components/ui/Modal';
 import { Spinner } from '../../components/ui/Spinner';
 import { KPISkeleton, TableRowSkeleton } from '../../components/ui/Skeleton';
@@ -66,15 +65,15 @@ function KPICard({ label, value, sub, iconBg, icon }: { label: string; value: nu
   );
 }
 
-// ─── Alert Detail Drawer ──────────────────────────────────────────────────────
-interface AlertDrawerProps {
+// ─── Alert Detail Modal ───────────────────────────────────────────────────────
+interface AlertDetailModalProps {
   alert: Alert | null;
   isOpen: boolean;
   onClose: () => void;
   onReviewed: (id: string) => void;
 }
 
-function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerProps) {
+function AlertDetailModal({ alert, isOpen, onClose, onReviewed }: AlertDetailModalProps) {
   const navigate = useNavigate();
   const [showNoteModal, setNoteModal] = useState(false);
   const [noteText, setNoteText]       = useState('');
@@ -119,7 +118,7 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
 
   return (
     <>
-      <Drawer isOpen={isOpen} onClose={onClose} title="Contexto do alerta" maxWidth="max-w-xl">
+      <Modal isOpen={isOpen} onClose={onClose} title="Contexto do alerta" maxWidth="max-w-3xl">
         {/* Mini-header do paciente */}
         <div className="bg-slate-50 rounded-xl p-4 mb-5 flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 font-bold flex items-center justify-center flex-shrink-0">
@@ -226,7 +225,7 @@ function AlertDetailDrawer({ alert, isOpen, onClose, onReviewed }: AlertDrawerPr
             Adicionar nota
           </button>
         </div>
-      </Drawer>
+      </Modal>
 
       {/* Modal de nota */}
       <Modal isOpen={showNoteModal} onClose={() => setNoteModal(false)} title="Adicionar nota">
@@ -282,7 +281,7 @@ export function DoctorAlerts() {
 
   const [search,  setSearch]  = useState('');
   const [chip,    setChip]    = useState<FilterChip>('todos');
-  const [drawerAlert, setDrawerAlert] = useState<Alert | null>(null);
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [toast,   setToast]   = useState<{ msg: string; variant: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
@@ -316,6 +315,22 @@ export function DoctorAlerts() {
     } catch {
       setToast({ msg: 'Falha ao registrar revisão. Tente novamente.', variant: 'error' });
     }
+  }
+
+  function openPatient(patientId: string, tab = 'prontuario') {
+    navigate(`/doctor/patients/${patientId}?tab=${tab}`);
+  }
+
+  function handleRowKeyDown(event: KeyboardEvent<HTMLElement>, alert: Alert) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setSelectedAlert(alert);
+    }
+  }
+
+  function stopRowAction(event: MouseEvent<HTMLButtonElement>, action: () => void) {
+    event.stopPropagation();
+    action();
   }
 
   const pendingCount = alerts.filter(a => a.status === 'pending').length;
@@ -431,33 +446,50 @@ export function DoctorAlerts() {
                     </tr>
                   )
                   : filtered.map(alert => (
-                    <tr key={alert.id} className={`hover:bg-slate-50 transition-colors ${alert.status === 'pending' && alert.severity === 'high' ? 'border-l-2 border-l-red-400' : ''}`}>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-slate-800 text-xs">{alert.patientName}</p>
-                        {alert.patientIG && <p className="text-xs text-slate-400 mt-0.5">IG: {alert.patientIG}</p>}
+                    <tr
+                      key={alert.id}
+                      className={`cursor-pointer transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 ${alert.status === 'pending' && alert.severity === 'high' ? 'border-l-2 border-l-red-400' : ''}`}
+                      onClick={() => setSelectedAlert(alert)}
+                      onKeyDown={(event) => handleRowKeyDown(event, alert)}
+                      tabIndex={0}
+                      aria-label={`Abrir contexto do alerta de ${alert.patientName}`}
+                    >
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700" aria-hidden="true">
+                            {alert.patientName.charAt(0)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-800">{alert.patientName}</p>
+                            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+                              {alert.patientIG && <span>IG: {alert.patientIG}</span>}
+                              <span className="text-brand-600">Abrir contexto</span>
+                            </div>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center gap-1.5">
                           <span aria-hidden="true">{TYPE_ICON[alert.type] ?? '•'}</span>
                           <span className="text-xs text-slate-700">{alert.type}</span>
                         </div>
                         <AlertBadge level={SEVERITY_TO_LEVEL[alert.severity]} iconOnly className="mt-1.5" />
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-700 font-medium tabular-nums max-w-[120px]">
+                      <td className="px-4 py-2.5 text-xs text-slate-700 font-medium tabular-nums max-w-[160px]">
                         {alert.metricValue}
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-500 whitespace-nowrap">
+                      <td className="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">
                         {relativeDate(alert.createdAt)}<br />
                         <span className="text-slate-400">{formatTime(alert.createdAt)}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-2.5">
                         <StatusBadge status={alert.status} />
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
-                            onClick={() => setDrawerAlert(alert)}
+                            onClick={(event) => stopRowAction(event, () => setSelectedAlert(alert))}
                             className="px-2.5 py-1.5 text-xs font-medium text-brand-700 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors"
                             aria-label={`Ver contexto do alerta de ${alert.patientName}`}
                           >
@@ -465,22 +497,12 @@ export function DoctorAlerts() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => navigate(`/doctor/patients/${alert.patientId}`)}
+                            onClick={(event) => stopRowAction(event, () => openPatient(alert.patientId, 'overview'))}
                             className="px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
                             aria-label={`Abrir paciente ${alert.patientName}`}
                           >
                             Paciente
                           </button>
-                          {alert.status === 'pending' && (
-                            <button
-                              type="button"
-                              onClick={() => handleMarkReviewed(alert.id)}
-                              className="px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors"
-                              aria-label={`Marcar alerta de ${alert.patientName} como revisado`}
-                            >
-                              Revisar
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -506,7 +528,15 @@ export function DoctorAlerts() {
                 </li>
               )
               : filtered.map(alert => (
-                <li key={alert.id} role="listitem" className="bg-white rounded-xl border border-slate-100 shadow-card p-4">
+                <li
+                  key={alert.id}
+                  role="listitem"
+                  className="cursor-pointer bg-white rounded-xl border border-slate-100 shadow-card p-4 transition-shadow hover:shadow-card-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                  onClick={() => setSelectedAlert(alert)}
+                  onKeyDown={(event) => handleRowKeyDown(event, alert)}
+                  tabIndex={0}
+                  aria-label={`Abrir contexto do alerta de ${alert.patientName}`}
+                >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
                       <p className="text-sm font-semibold text-slate-800">{alert.patientName}</p>
@@ -524,16 +554,10 @@ export function DoctorAlerts() {
                   <p className="text-sm font-bold text-slate-800 mb-1">{alert.metricValue}</p>
                   <p className="text-xs text-slate-400 mb-3">{relativeDate(alert.createdAt)}</p>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => setDrawerAlert(alert)}
+                    <button type="button" onClick={(event) => stopRowAction(event, () => setSelectedAlert(alert))}
                       className="flex-1 py-2 text-xs font-semibold text-brand-700 bg-brand-50 rounded-lg hover:bg-brand-100 transition-colors">
                       Ver contexto
                     </button>
-                    {alert.status === 'pending' && (
-                      <button type="button" onClick={() => handleMarkReviewed(alert.id)}
-                        className="px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
-                        Revisar
-                      </button>
-                    )}
                   </div>
                 </li>
               ))
@@ -542,11 +566,11 @@ export function DoctorAlerts() {
         </section>
       </div>
 
-      {/* Drawer de contexto */}
-      <AlertDetailDrawer
-        alert={drawerAlert}
-        isOpen={drawerAlert !== null}
-        onClose={() => setDrawerAlert(null)}
+      {/* Modal de contexto */}
+      <AlertDetailModal
+        alert={selectedAlert}
+        isOpen={selectedAlert !== null}
+        onClose={() => setSelectedAlert(null)}
         onReviewed={handleMarkReviewed}
       />
 
