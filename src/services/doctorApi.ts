@@ -49,6 +49,7 @@ type PatientDetailApi = {
     patientId: string;
     date: string;
     description: string;
+    complementaryNote?: string;
     mood: DailyReport['mood'];
     symptoms: string[];
     clinicalPriority?: DailyReport['clinicalPriority'];
@@ -134,6 +135,40 @@ type ExameArquivoOut = {
   enviadoEm: string;
 };
 
+type AIStatusOut = {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  baseUrl: string;
+  providerReachable: boolean;
+  status: 'online' | 'offline' | 'disabled';
+  calibrationExamples: number;
+  validationCases: number;
+  message: string;
+};
+
+type AICalibrationCaseOut = {
+  name: string;
+  expectedSemaphore: 'verde' | 'amarelo' | 'vermelho';
+  actualSemaphore: 'verde' | 'amarelo' | 'vermelho';
+  semaphoreMatch: boolean;
+  expectedSymptoms: string[];
+  actualSymptoms: string[];
+  matchedSymptoms: number;
+  passed: boolean;
+};
+
+type AICalibrationRunOut = {
+  provider: string;
+  model: string;
+  executedAt: string;
+  providerReachable: boolean;
+  totalCases: number;
+  passedCases: number;
+  message: string;
+  cases: AICalibrationCaseOut[];
+};
+
 export interface PatientDetailsBundle {
   patient: Patient;
   reports: DailyReport[];
@@ -194,6 +229,13 @@ export interface UpdateDailyReportInput {
   doctorNote?: string;
 }
 
+export interface AddOrientationInput {
+  patientId: string;
+  date: string;
+  text: string;
+  doctorId?: string;
+}
+
 const defaultPrenatalProfile: PrenatalProfile = {
   riskClassification: 'habitual',
   chronicConditions: [],
@@ -211,6 +253,7 @@ const defaultPrenatalProfile: PrenatalProfile = {
 function normalizeDailyReport(report: PatientDetailApi['reports'][number]): DailyReport {
   return {
     ...report,
+    complementaryNote: report.complementaryNote ?? undefined,
     clinicalPriority: report.clinicalPriority ?? 'normal',
     highlightForConsultation: report.highlightForConsultation ?? false,
     priorityReason: report.priorityReason ?? undefined,
@@ -238,6 +281,40 @@ export interface ReviewedSummary {
   alerts: string[];
   recommendations: string;
   approvedAt?: string;
+}
+
+export interface AIStatus {
+  enabled: boolean;
+  provider: string;
+  model: string;
+  baseUrl: string;
+  providerReachable: boolean;
+  status: 'online' | 'offline' | 'disabled';
+  calibrationExamples: number;
+  validationCases: number;
+  message: string;
+}
+
+export interface AICalibrationCase {
+  name: string;
+  expectedSemaphore: 'verde' | 'amarelo' | 'vermelho';
+  actualSemaphore: 'verde' | 'amarelo' | 'vermelho';
+  semaphoreMatch: boolean;
+  expectedSymptoms: string[];
+  actualSymptoms: string[];
+  matchedSymptoms: number;
+  passed: boolean;
+}
+
+export interface AICalibrationRun {
+  provider: string;
+  model: string;
+  executedAt: string;
+  providerReachable: boolean;
+  totalCases: number;
+  passedCases: number;
+  message: string;
+  cases: AICalibrationCase[];
 }
 
 function normalizePatient(patient: PatientApi): Patient {
@@ -386,6 +463,14 @@ export async function fetchPatientDetailsBundle(id: string): Promise<PatientDeta
   };
 }
 
+function normalizeAIStatus(item: AIStatusOut): AIStatus {
+  return { ...item };
+}
+
+function normalizeAICalibrationRun(item: AICalibrationRunOut): AICalibrationRun {
+  return { ...item };
+}
+
 function normalizeMedicalExam(item: ExameArquivoOut): MedicalExam {
   return {
     id: item.id,
@@ -474,6 +559,15 @@ export async function deleteMedicalRecord(recordId: string): Promise<void> {
   await api.delete(`/prontuarios/${recordId}`);
 }
 
+export async function addOrientation(payload: AddOrientationInput): Promise<void> {
+  await api.post('/orientacoes', {
+    gestanteId: payload.patientId,
+    medicoId: payload.doctorId,
+    data: payload.date.slice(0, 10),
+    texto: payload.text,
+  });
+}
+
 export async function updatePrenatalProfile(
   patientId: string,
   payload: UpdatePrenatalProfileInput,
@@ -510,4 +604,18 @@ export async function approvePatientSummary(
     recomendacoes: payload.recommendations,
   });
   return normalizeReviewedSummary(data);
+}
+
+export async function deletePatientSummary(summaryId: string): Promise<void> {
+  await api.delete(`/medicos/resumos-ia/${summaryId}`);
+}
+
+export async function fetchAIStatus(): Promise<AIStatus> {
+  const { data } = await api.get<AIStatusOut>('/medicos/ia/status');
+  return normalizeAIStatus(data);
+}
+
+export async function runAICalibration(): Promise<AICalibrationRun> {
+  const { data } = await api.post<AICalibrationRunOut>('/medicos/ia/calibracao/executar');
+  return normalizeAICalibrationRun(data);
 }

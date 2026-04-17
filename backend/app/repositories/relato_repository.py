@@ -38,6 +38,7 @@ class RelatoRepository:
         humor: str,
         sintomas_json: str,
         descricao: str | None,
+        nota_complementar: str | None,
     ) -> RelatoDiario:
         relato = RelatoDiario(
             gestante_id=gestante_id,
@@ -45,6 +46,7 @@ class RelatoRepository:
             humor=humor,
             sintomas_json=sintomas_json,
             descricao=descricao,
+            nota_complementar=nota_complementar,
         )
         self.db.add(relato)
         self.db.flush()

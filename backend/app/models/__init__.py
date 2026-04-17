@@ -1,4 +1,5 @@
 from app.models.alerta import Alerta, AlertaNota
+from app.models.chat_gestante_message import ChatGestanteMessage
 from app.models.consentimento import ConsentimentoLGPD
 from app.models.consulta import Consulta
 from app.models.exame_arquivo import ExameArquivo
@@ -23,4 +24,5 @@ __all__ = [
     "ResumoIA",
     "Alerta",
     "AlertaNota",
+    "ChatGestanteMessage",
 ]

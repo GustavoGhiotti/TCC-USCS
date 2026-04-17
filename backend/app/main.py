@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 
 from app.api.routes.auth import router as auth_router
+from app.api.routes.chat import router as chat_router
 from app.api.routes.consentimentos import router as consentimentos_router
 from app.api.routes.gestantes import router as gestantes_router
 from app.api.routes.relatos import router as relatos_router
@@ -9,6 +11,7 @@ from app.api.routes.care import router as care_router
 from app.core.config import settings
 from app.db.init_db import init_db, seed_db
 from app.db.session import SessionLocal
+from app.models.user import User
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
@@ -25,6 +28,7 @@ app.include_router(gestantes_router)
 app.include_router(consentimentos_router)
 app.include_router(relatos_router)
 app.include_router(care_router)
+app.include_router(chat_router)
 
 
 @app.on_event("startup")
@@ -32,7 +36,9 @@ def on_startup() -> None:
     init_db()
     db = SessionLocal()
     try:
-        seed_db(db)
+        has_users = db.scalar(select(User.id).limit(1)) is not None
+        if not has_users:
+            seed_db(db)
     finally:
         db.close()
 

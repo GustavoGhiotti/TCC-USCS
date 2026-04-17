@@ -1,0 +1,32 @@
+[
+  {
+    "scenario": "edema leve recorrente com cefaleia eventual",
+    "expected": {
+      "summary_text": "No período recente, os relatos mostram edema leve recorrente e episódios ocasionais de cefaleia, sem descrição de agravamento súbito consistente. O conjunto sugere necessidade de observação clínica continuada pelo médico.",
+      "identified_symptoms": ["inchaço", "dor de cabeça"],
+      "alerts": ["Monitorar persistência de edema", "Revisar padrão de cefaleia na próxima avaliação"],
+      "recommendations": "Texto para revisão médica: manter registros e observar evolução dos sintomas.",
+      "semaphore": "amarelo"
+    }
+  },
+  {
+    "scenario": "sem sintomas relevantes",
+    "expected": {
+      "summary_text": "No período analisado, houve registros com estabilidade subjetiva, sem sintomas de atenção claramente recorrentes.",
+      "identified_symptoms": [],
+      "alerts": [],
+      "recommendations": "Texto para revisão médica: acompanhamento de rotina e manutenção dos registros.",
+      "semaphore": "verde"
+    }
+  },
+  {
+    "scenario": "pico pressórico com cefaleia e tontura",
+    "expected": {
+      "summary_text": "Os registros do período incluem sintomas associados a maior preocupação clínica, com cefaleia, tontura e medida pressórica elevada descritas pela paciente. O material deve ser priorizado para revisão médica.",
+      "identified_symptoms": ["pressão alta", "dor de cabeça", "tontura"],
+      "alerts": ["Pressão elevada relatada", "Sintomas de atenção requerem revisão médica"],
+      "recommendations": "Texto para revisão médica: reforçar que a interpretação final depende de avaliação profissional.",
+      "semaphore": "vermelho"
+    }
+  }
+]

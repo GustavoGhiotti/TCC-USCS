@@ -1,0 +1,98 @@
+[
+  {
+    "name": "azia isolada com estabilidade geral",
+    "input": {
+      "patient": {
+        "name": "Paciente teste 1",
+        "gestational_weeks": 29,
+        "blood_type": "O+"
+      },
+      "period": {
+        "start": "2026-04-01",
+        "end": "2026-04-07"
+      },
+      "reports": [
+        {
+          "date": "2026-04-03",
+          "mood": "normal",
+          "symptoms": ["azia"],
+          "description": "Azia leve apos o jantar, sem outros sintomas.",
+          "systolic_pressure": 112,
+          "diastolic_pressure": 72,
+          "heart_rate": 84,
+          "oxygen_saturation": 98,
+          "temperature_c": 36.4,
+          "weight_kg": 68.1
+        }
+      ]
+    },
+    "expected": {
+      "semaphore": "verde",
+      "identified_symptoms": ["azia"]
+    }
+  },
+  {
+    "name": "inchaco com cefaleia recorrente",
+    "input": {
+      "patient": {
+        "name": "Paciente teste 2",
+        "gestational_weeks": 33,
+        "blood_type": "A+"
+      },
+      "period": {
+        "start": "2026-04-01",
+        "end": "2026-04-07"
+      },
+      "reports": [
+        {
+          "date": "2026-04-05",
+          "mood": "ansioso",
+          "symptoms": ["inchaco", "dor de cabeca"],
+          "description": "Refere inchaco em membros inferiores com dor de cabeca no fim do dia.",
+          "systolic_pressure": 128,
+          "diastolic_pressure": 82,
+          "heart_rate": 88,
+          "oxygen_saturation": 98,
+          "temperature_c": 36.6,
+          "weight_kg": 72.5
+        }
+      ]
+    },
+    "expected": {
+      "semaphore": "amarelo",
+      "identified_symptoms": ["inchaco", "dor de cabeca"]
+    }
+  },
+  {
+    "name": "sangramento com tontura",
+    "input": {
+      "patient": {
+        "name": "Paciente teste 3",
+        "gestational_weeks": 31,
+        "blood_type": "B+"
+      },
+      "period": {
+        "start": "2026-04-01",
+        "end": "2026-04-07"
+      },
+      "reports": [
+        {
+          "date": "2026-04-06",
+          "mood": "ansioso",
+          "symptoms": ["sangramento", "tontura"],
+          "description": "Relata sangramento leve com tontura no mesmo dia.",
+          "systolic_pressure": 136,
+          "diastolic_pressure": 88,
+          "heart_rate": 96,
+          "oxygen_saturation": 97,
+          "temperature_c": 36.7,
+          "weight_kg": 70.8
+        }
+      ]
+    },
+    "expected": {
+      "semaphore": "vermelho",
+      "identified_symptoms": ["sangramento", "tontura"]
+    }
+  }
+]

@@ -20,6 +20,7 @@ export interface RelatoPayload {
   humor: RelatoDiario['humor'];
   sintomas: string[];
   descricao: string;
+  notaComplementar?: string;
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
@@ -54,6 +55,7 @@ export async function getRelatosGestanteService(
     humor: RelatoDiario['humor'];
     sintomas: string[];
     descricao: string | null;
+    nota_complementar?: string | null;
   }>>('/relatos/me', {
     params: { periodo },
   });
@@ -65,6 +67,7 @@ export async function getRelatosGestanteService(
     humor: r.humor,
     sintomas: r.sintomas ?? [],
     descricao: r.descricao ?? '',
+    notaComplementar: r.nota_complementar ?? '',
   }));
 }
 
@@ -81,11 +84,13 @@ export async function createRelatoGestante(
     humor: RelatoDiario['humor'];
     sintomas: string[];
     descricao: string | null;
+    nota_complementar?: string | null;
   }>('/relatos', {
     data: payload.data,
     humor: payload.humor,
     sintomas: payload.sintomas,
     descricao: payload.descricao,
+    nota_complementar: payload.notaComplementar ?? '',
   });
 
   return {
@@ -95,6 +100,7 @@ export async function createRelatoGestante(
     humor: data.humor,
     sintomas: data.sintomas ?? [],
     descricao: data.descricao ?? '',
+    notaComplementar: data.nota_complementar ?? '',
   };
 }
 
@@ -111,6 +117,9 @@ export async function getMedicamentosGestanteService(_gestanteId: string): Promi
     dataPrescricao?: string | null;
     dataFim?: string | null;
     ativo: boolean;
+    lembreteAtivo?: boolean;
+    tomadoHoje?: boolean;
+    tomadoHojeEm?: string | null;
   }>>('/medicamentos/me');
 
   return data.map((item) => ({
@@ -123,7 +132,29 @@ export async function getMedicamentosGestanteService(_gestanteId: string): Promi
     dataPrescricao: item.dataPrescricao ?? undefined,
     dataFim: item.dataFim ?? null,
     ativo: item.ativo,
+    lembreteAtivo: item.lembreteAtivo ?? false,
+    tomadoHoje: item.tomadoHoje ?? false,
+    tomadoHojeEm: item.tomadoHojeEm ?? undefined,
   }));
+}
+
+export async function updateMedicamentoControleGestante(
+  medicamentoId: string,
+  payload: { lembreteAtivo?: boolean; tomadoHoje?: boolean },
+): Promise<{ medicamentoId: string; lembreteAtivo: boolean; tomadoHoje: boolean; tomadoHojeEm?: string }> {
+  const { data } = await api.patch<{
+    medicamentoId: string;
+    lembreteAtivo: boolean;
+    tomadoHoje: boolean;
+    tomadoHojeEm?: string | null;
+  }>(`/medicamentos/${medicamentoId}/controle`, payload);
+
+  return {
+    medicamentoId: data.medicamentoId,
+    lembreteAtivo: data.lembreteAtivo,
+    tomadoHoje: data.tomadoHoje,
+    tomadoHojeEm: data.tomadoHojeEm ?? undefined,
+  };
 }
 
 // ─── Resumos IA ───────────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import { GestanteRelatos }      from '../pages/gestante/GestanteRelatos';
 import { GestanteMedicamentos } from '../pages/gestante/GestanteMedicamentos';
 import { GestanteResumosIA }    from '../pages/gestante/GestanteResumosIA';
 import { GestantePerfil }       from '../pages/gestante/GestantePerfil';
+import { GestanteChatIA }       from '../pages/gestante/GestanteChatIA';
 
 // Páginas gestante — legado
 import { Consultas } from '../pages/Consultas';
@@ -86,6 +87,14 @@ export function AppRoutes() {
             element={
               <ProtectedRoute requiredRole="gestante">
                 <GestanteResumosIA />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gestante/chat-ia"
+            element={
+              <ProtectedRoute requiredRole="gestante">
+                <GestanteChatIA />
               </ProtectedRoute>
             }
           />

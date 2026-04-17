@@ -49,44 +49,6 @@ const PERIODOS: { value: PeriodoFiltro; label: string }[] = [
   { value: '7d', label: 'Ultimos 7 dias' },
 ];
 
-const RELATO_NOTES_STORAGE_KEY = 'gestacare.relato-extra-notes';
-
-function getStoredRelatoNotes(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(RELATO_NOTES_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function getRelatoNoteKey(userId: string, relatoId: string) {
-  return `${userId}:${relatoId}`;
-}
-
-function getStoredRelatoNote(userId: string, relatoId: string) {
-  return getStoredRelatoNotes()[getRelatoNoteKey(userId, relatoId)] ?? '';
-}
-
-function setStoredRelatoNote(userId: string, relatoId: string, note: string) {
-  if (typeof window === 'undefined') return;
-
-  const notes = getStoredRelatoNotes();
-  const key = getRelatoNoteKey(userId, relatoId);
-  const trimmed = note.trim();
-
-  if (trimmed) {
-    notes[key] = trimmed;
-  } else {
-    delete notes[key];
-  }
-
-  window.localStorage.setItem(RELATO_NOTES_STORAGE_KEY, JSON.stringify(notes));
-}
-
 interface RelatoFormProps {
   initialValues?: RelatoPayload;
   initialExtraNote?: string;
@@ -133,6 +95,7 @@ function RelatoForm({
           humor,
           sintomas,
           descricao,
+          notaComplementar: extraNote,
         },
         extraNote,
       );
@@ -326,13 +289,7 @@ export function GestanteRelatos() {
   async function handleCreate(payload: RelatoPayload, extraNote: string) {
     if (!user) return;
 
-    await createRelatoGestante(user.id, payload);
-    const refreshed = await getRelatosGestanteService(user.id, 'todos');
-    const savedReport = refreshed.find((item) => item.data === payload.data);
-
-    if (savedReport) {
-      setStoredRelatoNote(user.id, savedReport.id, extraNote);
-    }
+    await createRelatoGestante(user.id, { ...payload, notaComplementar: extraNote });
 
     setCreateModalOpen(false);
     setToastMessage('Relato registrado com sucesso!');
@@ -342,8 +299,7 @@ export function GestanteRelatos() {
   async function handleUpdate(payload: RelatoPayload, extraNote: string) {
     if (!user || !selectedRelato) return;
 
-    await createRelatoGestante(user.id, payload);
-    setStoredRelatoNote(user.id, selectedRelato.id, extraNote);
+    await createRelatoGestante(user.id, { ...payload, notaComplementar: extraNote });
     setSelectedRelato(null);
     setToastMessage('Relato atualizado com sucesso!');
     loadRelatos();
@@ -351,10 +307,6 @@ export function GestanteRelatos() {
 
   function openRelato(relato: RelatoDiario) {
     setSelectedRelato(relato);
-  }
-
-  function getRelatoNote(relatoId: string) {
-    return user ? getStoredRelatoNote(user.id, relatoId) : '';
   }
 
   const filtered = useMemo(() => relatos, [relatos]);
@@ -445,7 +397,7 @@ export function GestanteRelatos() {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {filtered.map((relato) => {
-                        const extraNote = getRelatoNote(relato.id);
+                        const extraNote = relato.notaComplementar ?? '';
 
                         return (
                           <tr
@@ -511,7 +463,7 @@ export function GestanteRelatos() {
 
             <div className="space-y-3 sm:hidden">
               {filtered.map((relato) => {
-                const extraNote = getRelatoNote(relato.id);
+                const extraNote = relato.notaComplementar ?? '';
 
                 return (
                   <button
@@ -586,7 +538,7 @@ export function GestanteRelatos() {
                   <Badge variant={HUMOR_BADGE[selectedRelato.humor]}>
                     {selectedRelato.humor.charAt(0).toUpperCase() + selectedRelato.humor.slice(1)}
                   </Badge>
-                  {getRelatoNote(selectedRelato.id) && <Badge variant="info">Nota complementar salva</Badge>}
+                  {selectedRelato.notaComplementar && <Badge variant="info">Nota complementar salva</Badge>}
                 </div>
               </div>
             </section>
@@ -598,7 +550,7 @@ export function GestanteRelatos() {
                 sintomas: selectedRelato.sintomas,
                 descricao: selectedRelato.descricao,
               }}
-              initialExtraNote={getRelatoNote(selectedRelato.id)}
+              initialExtraNote={selectedRelato.notaComplementar ?? ''}
               saveLabel="Salvar alteracoes"
               isEditing
               onSave={handleUpdate}

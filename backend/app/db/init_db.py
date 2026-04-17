@@ -41,6 +41,8 @@ def init_db() -> None:
         for name, sql_type in expected.items():
             if name not in columns:
                 conn.execute(text(f"ALTER TABLE relatos_diarios ADD COLUMN {name} {sql_type}"))
+        if "nota_complementar" not in columns:
+            conn.execute(text("ALTER TABLE relatos_diarios ADD COLUMN nota_complementar TEXT"))
         resumo_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(resumos_ia)")).fetchall()}
         resumo_expected = {
             "status": "TEXT NOT NULL DEFAULT 'pending'",
@@ -52,6 +54,15 @@ def init_db() -> None:
         for name, sql_type in resumo_expected.items():
             if name not in resumo_columns:
                 conn.execute(text(f"ALTER TABLE resumos_ia ADD COLUMN {name} {sql_type}"))
+        med_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(medicamentos)")).fetchall()}
+        med_expected = {
+            "lembrete_ativo": "BOOLEAN NOT NULL DEFAULT 0",
+            "tomado_hoje": "BOOLEAN NOT NULL DEFAULT 0",
+            "tomado_hoje_em": "DATETIME",
+        }
+        for name, sql_type in med_expected.items():
+            if name not in med_columns:
+                conn.execute(text(f"ALTER TABLE medicamentos ADD COLUMN {name} {sql_type}"))
 
 
 def seed_db(db: Session) -> None:
@@ -63,6 +74,7 @@ def seed_db(db: Session) -> None:
 
     db.execute(text("DELETE FROM alertas_notas"))
     db.execute(text("DELETE FROM alertas"))
+    db.execute(text("DELETE FROM chat_gestante_mensagens"))
     db.execute(text("DELETE FROM exames_arquivos"))
     db.execute(text("DELETE FROM resumos_ia"))
     db.execute(text("DELETE FROM prontuarios"))

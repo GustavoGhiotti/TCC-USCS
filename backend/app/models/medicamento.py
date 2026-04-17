@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import Boolean, Date, ForeignKey, String, Text
@@ -22,3 +22,6 @@ class Medicamento(Base, TimestampMixin):
     data_fim: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    lembrete_ativo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tomado_hoje: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    tomado_hoje_em: Mapped[Optional[datetime]] = mapped_column(nullable=True)

@@ -178,9 +178,9 @@ export async function generateResumoIA(params: {
     try {
       const detail = await fetchPatientDetailsBundle(gestanteId);
       relatosUsados = detail.reports
-        .filter(r => r.data >= range.start && r.data <= range.end)
+        .filter(r => r.date >= range.start && r.date <= range.end)
         .map(r => ({
-          data: r.data,
+          data: r.date,
           sintomas: r.symptoms,
           humor: r.mood,
           descricao: r.description,

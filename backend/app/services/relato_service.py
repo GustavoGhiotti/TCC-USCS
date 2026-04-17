@@ -51,6 +51,7 @@ class RelatoService:
             existing.humor = payload.humor
             existing.sintomas_json = json.dumps(payload.sintomas, ensure_ascii=False)
             existing.descricao = payload.descricao or None
+            existing.nota_complementar = payload.nota_complementar or None
             self.db.add(existing)
             self.db.commit()
             self.db.refresh(existing)
@@ -62,6 +63,7 @@ class RelatoService:
             humor=payload.humor,
             sintomas_json=json.dumps(payload.sintomas, ensure_ascii=False),
             descricao=payload.descricao or None,
+            nota_complementar=payload.nota_complementar or None,
         )
         self.db.commit()
         self.db.refresh(relato)
@@ -81,6 +83,7 @@ class RelatoService:
             humor=relato.humor,
             sintomas=sintomas,
             descricao=relato.descricao,
+            nota_complementar=relato.nota_complementar,
             created_at=relato.created_at,
             updated_at=relato.updated_at,
         )

@@ -23,6 +23,7 @@ export interface DailyReport {
   patientId: string;
   date: string;
   description: string;
+  complementaryNote?: string;
   mood: 'feliz' | 'normal' | 'triste' | 'ansioso';
   symptoms: string[];
   clinicalPriority: 'baixa' | 'normal' | 'alta' | 'critica';

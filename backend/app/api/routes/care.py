@@ -22,6 +22,9 @@ from app.models.relato import RelatoDiario
 from app.models.resumo_ia import ResumoIA
 from app.models.user import User
 from app.schemas.care import (
+    AICalibrationCaseOut,
+    AICalibrationRunOut,
+    AIStatusOut,
     AlertNoteIn,
     AlertNoteOut,
     AlertOut,
@@ -34,6 +37,8 @@ from app.schemas.care import (
     ExameArquivoOut,
     MedicoKPIOut,
     MedicoPacienteOut,
+    MedicamentoControleIn,
+    MedicamentoControleOut,
     MedicamentoIn,
     MedicamentoOut,
     MedicamentoUpdateIn,
@@ -47,6 +52,7 @@ from app.schemas.care import (
     ResumoOut,
     ResumoReviewIn,
 )
+from app.services.clinical_ai_service import generate_clinical_summary, get_ai_runtime_status, run_calibration_suite
 
 router = APIRouter(tags=["Care"])
 
@@ -103,6 +109,47 @@ def _map_resumo_out(resumo: ResumoIA, *, for_patient: bool) -> ResumoOut:
         aprovadoEm=resumo.revisado_em,
     )
 
+
+def _map_ai_status_out() -> AIStatusOut:
+    status = get_ai_runtime_status()
+    return AIStatusOut(
+        enabled=status.enabled,
+        provider=status.provider,
+        model=status.model,
+        baseUrl=status.base_url,
+        providerReachable=status.provider_reachable,
+        status=status.status,
+        calibrationExamples=status.calibration_examples,
+        validationCases=status.validation_cases,
+        message=status.message,
+    )
+
+
+def _map_ai_calibration_run_out() -> AICalibrationRunOut:
+    run = run_calibration_suite()
+    return AICalibrationRunOut(
+        provider=run.provider,
+        model=run.model,
+        executedAt=run.executed_at,
+        providerReachable=run.provider_reachable,
+        totalCases=run.total_cases,
+        passedCases=run.passed_cases,
+        message=run.message,
+        cases=[
+            AICalibrationCaseOut(
+                name=item.name,
+                expectedSemaphore=item.expected_semaphore,
+                actualSemaphore=item.actual_semaphore,
+                semaphoreMatch=item.semaphore_match,
+                expectedSymptoms=item.expected_symptoms,
+                actualSymptoms=item.actual_symptoms,
+                matchedSymptoms=item.matched_symptoms,
+                passed=item.passed,
+            )
+            for item in run.cases
+        ],
+    )
+
 def _get_medicamento_by_id(db: Session, medicamento_id: str) -> Medicamento:
     med = db.scalar(select(Medicamento).where(Medicamento.id == medicamento_id))
     if not med:
@@ -122,6 +169,18 @@ def _map_medicamento_out(med: Medicamento) -> MedicamentoOut:
         dataPrescricao=(med.data_inicio or date.today()),
         ativo=med.ativo,
         observacoes=med.observacoes,
+        lembreteAtivo=bool(med.lembrete_ativo),
+        tomadoHoje=bool(med.tomado_hoje),
+        tomadoHojeEm=med.tomado_hoje_em,
+    )
+
+
+def _map_medicamento_controle_out(med: Medicamento) -> MedicamentoControleOut:
+    return MedicamentoControleOut(
+        medicamentoId=med.id,
+        lembreteAtivo=bool(med.lembrete_ativo),
+        tomadoHoje=bool(med.tomado_hoje),
+        tomadoHojeEm=med.tomado_hoje_em,
     )
 
 
@@ -167,6 +226,7 @@ def _map_relato_detail_out(relato: RelatoDiario, gestante_id: str) -> dict:
         "patientId": gestante_id,
         "date": datetime.combine(relato.data_relato, datetime.min.time()).replace(tzinfo=UTC).isoformat(),
         "description": relato.descricao or "",
+        "complementaryNote": relato.nota_complementar or "",
         "mood": relato.humor,
         "symptoms": json.loads(relato.sintomas_json or "[]"),
         "clinicalPriority": (
@@ -217,6 +277,14 @@ def medicamentos_me(current_user: User = Depends(get_current_user), db: Session 
     gestante = _get_gestante_by_user(db, current_user.id)
     meds = list(db.scalars(select(Medicamento).where(Medicamento.gestante_id == gestante.id).order_by(desc(Medicamento.created_at))))
     return [_map_medicamento_out(m) for m in meds]
+
+
+@router.get("/medicamentos/me/controles", response_model=list[MedicamentoControleOut])
+def medicamentos_me_controles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    _require_role(current_user, "gestante")
+    gestante = _get_gestante_by_user(db, current_user.id)
+    meds = list(db.scalars(select(Medicamento).where(Medicamento.gestante_id == gestante.id).order_by(desc(Medicamento.created_at))))
+    return [_map_medicamento_controle_out(m) for m in meds]
 
 
 @router.post("/medicamentos", response_model=MedicamentoOut)
@@ -270,6 +338,31 @@ def update_medicamento(
     db.commit()
     db.refresh(med)
     return _map_medicamento_out(med)
+
+
+@router.patch("/medicamentos/{medicamento_id}/controle", response_model=MedicamentoControleOut)
+def update_medicamento_controle(
+    medicamento_id: str,
+    payload: MedicamentoControleIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "gestante")
+    gestante = _get_gestante_by_user(db, current_user.id)
+    med = _get_medicamento_by_id(db, medicamento_id)
+    if med.gestante_id != gestante.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso negado a este medicamento.")
+
+    if payload.lembreteAtivo is not None:
+        med.lembrete_ativo = payload.lembreteAtivo
+    if payload.tomadoHoje is not None:
+        med.tomado_hoje = payload.tomadoHoje
+        med.tomado_hoje_em = datetime.now(UTC) if payload.tomadoHoje else None
+
+    db.add(med)
+    db.commit()
+    db.refresh(med)
+    return _map_medicamento_controle_out(med)
 
 
 @router.delete("/medicamentos/{medicamento_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -567,33 +660,22 @@ def gerar_resumo(payload: ResumoGerarIn, current_user: User = Depends(get_curren
             )
         )
     )
-    sintomas: list[str] = []
-    for r in relatos:
-        sintomas.extend(json.loads(r.sintomas_json or "[]"))
-
-    sintomas_freq: dict[str, int] = {}
-    for s in sintomas:
-        sintomas_freq[s] = sintomas_freq.get(s, 0) + 1
-    top = sorted(sintomas_freq.items(), key=lambda x: x[1], reverse=True)[:5]
-    top_list = [k for k, _ in top]
-
-    avisos = [s for s in top_list if s.lower() in {"pressao alta", "edema severo", "sangramento", "contracoes"}]
-    semaforo = _semaforo_from_alerts([s.lower() for s in top_list])
-
-    texto = (
-        f"Resumo do periodo: {len(relatos)} relato(s) registrado(s). "
-        + (f"Sintomas mais frequentes: {', '.join(top_list)}." if top_list else "Sem sintomas relevantes registrados.")
+    ai_result = generate_clinical_summary(
+        gestante=gestante,
+        relatos=relatos,
+        start=payload.periodo_inicio.date(),
+        end=payload.periodo_fim.date(),
     )
 
     resumo = ResumoIA(
         gestante_id=gestante.id,
         periodo_inicio=payload.periodo_inicio,
         periodo_fim=payload.periodo_fim,
-        resumo_texto=texto,
-        nivel_alerta=semaforo,
-        sintomas_identificados_json=json.dumps(top_list, ensure_ascii=False),
-        avisos_json=json.dumps(avisos, ensure_ascii=False),
-        recomendacoes="Resumo informativo; nao substitui avaliacao medica.",
+        resumo_texto=ai_result.summary_text,
+        nivel_alerta=ai_result.semaphore,
+        sintomas_identificados_json=json.dumps(ai_result.identified_symptoms, ensure_ascii=False),
+        avisos_json=json.dumps(ai_result.alerts, ensure_ascii=False),
+        recomendacoes=ai_result.recommendations,
         status="pending",
         gerado_em=datetime.now(UTC),
     )
@@ -640,6 +722,33 @@ def aprovar_resumo_ia(
     db.commit()
     db.refresh(resumo)
     return _map_resumo_out(resumo, for_patient=False)
+
+
+@router.delete("/medicos/resumos-ia/{resumo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_resumo_ia(
+    resumo_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _require_role(current_user, "medico")
+    resumo = db.scalar(select(ResumoIA).where(ResumoIA.id == resumo_id))
+    if not resumo:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resumo nao encontrado")
+
+    db.delete(resumo)
+    db.commit()
+
+
+@router.get("/medicos/ia/status", response_model=AIStatusOut)
+def medico_ai_status(current_user: User = Depends(get_current_user)):
+    _require_role(current_user, "medico")
+    return _map_ai_status_out()
+
+
+@router.post("/medicos/ia/calibracao/executar", response_model=AICalibrationRunOut)
+def medico_ai_calibracao(current_user: User = Depends(get_current_user)):
+    _require_role(current_user, "medico")
+    return _map_ai_calibration_run_out()
 
 
 @router.get("/medicos/pacientes", response_model=list[MedicoPacienteOut])

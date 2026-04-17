@@ -18,6 +18,7 @@ class RelatoDiario(Base, TimestampMixin):
     humor: Mapped[str] = mapped_column(String(20), nullable=False)
     sintomas_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
     descricao: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    nota_complementar: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     pressao_sistolica: Mapped[Optional[int]] = mapped_column(nullable=True)
     pressao_diastolica: Mapped[Optional[int]] = mapped_column(nullable=True)
     frequencia_cardiaca: Mapped[Optional[int]] = mapped_column(nullable=True)

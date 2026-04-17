@@ -29,8 +29,10 @@ function Sparkline({ values, color }: SparklineProps) {
     })
     .join(' ');
 
-  const lastX = parseFloat(points.split(' ').at(-1)!.split(',')[0]);
-  const lastY = parseFloat(points.split(' ').at(-1)!.split(',')[1]);
+  const pointParts = points.split(' ');
+  const lastPoint = pointParts[pointParts.length - 1].split(',');
+  const lastX = parseFloat(lastPoint[0]);
+  const lastY = parseFloat(lastPoint[1]);
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">

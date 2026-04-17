@@ -31,6 +31,13 @@ function IconSparkles({ className }: { className?: string }) {
     </svg>
   );
 }
+function IconChat({ className }: { className?: string }) {
+  return (
+    <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25-4.03 8.25-9 8.25a10.523 10.523 0 01-4.18-.86l-3.82 1.11 1.238-3.303A7.724 7.724 0 012.25 12z" />
+    </svg>
+  );
+}
 function IconLogout({ className }: { className?: string }) {
   return (
     <svg className={cn('w-5 h-5', className)} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
@@ -145,6 +152,7 @@ function GestanteSidebar({ onNavigate }: SidebarProps) {
         <NavItem to="/gestante/relatos" icon={<IconDocument />} label="Relatos" onClick={onNavigate} />
         <NavItem to="/gestante/exames" icon={<IconDocument />} label="Exames" onClick={onNavigate} />
         <NavItem to="/gestante/medicamentos" icon={<IconPill />} label="Medicamentos" onClick={onNavigate} />
+        <NavItem to="/gestante/chat-ia" icon={<IconChat />} label="Assistente IA" onClick={onNavigate} />
         <NavItem to="/gestante/resumos-ia" icon={<IconSparkles />} label="Resumos IA" onClick={onNavigate} />
       </div>
 

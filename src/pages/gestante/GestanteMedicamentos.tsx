@@ -6,7 +6,7 @@ import { Modal } from '../../components/ui/Modal';
 import { PageSpinner } from '../../components/ui/Spinner';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDate } from '../../lib/utils';
-import { getMedicamentosGestanteService } from '../../services/gestanteService';
+import { getMedicamentosGestanteService, updateMedicamentoControleGestante } from '../../services/gestanteService';
 import type { Medicamento } from '../../types/domain';
 
 type MedicationControlState = {
@@ -14,36 +14,6 @@ type MedicationControlState = {
   takenToday: boolean;
   lastTakenAt?: string;
 };
-
-const MEDICATION_CONTROL_STORAGE_KEY = 'gestacare.medication-controls';
-
-function getStoredMedicationControls(): Record<string, MedicationControlState> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(MEDICATION_CONTROL_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, MedicationControlState>) : {};
-  } catch {
-    return {};
-  }
-}
-
-function getMedicationControlKey(userId: string, medId: string) {
-  return `${userId}:${medId}`;
-}
-
-function getMedicationControl(userId: string, medId: string): MedicationControlState {
-  const controls = getStoredMedicationControls();
-  return controls[getMedicationControlKey(userId, medId)] ?? { remindersEnabled: false, takenToday: false };
-}
-
-function saveMedicationControl(userId: string, medId: string, state: MedicationControlState) {
-  if (typeof window === 'undefined') return;
-  const controls = getStoredMedicationControls();
-  controls[getMedicationControlKey(userId, medId)] = state;
-  window.localStorage.setItem(MEDICATION_CONTROL_STORAGE_KEY, JSON.stringify(controls));
-}
 
 function MedicationIcon() {
   return (
@@ -243,29 +213,47 @@ export function GestanteMedicamentos() {
   useEffect(loadMeds, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!user) return;
     const nextControls: Record<string, MedicationControlState> = {};
     for (const med of medicamentos) {
-      nextControls[med.id] = getMedicationControl(user.id, med.id);
+      nextControls[med.id] = {
+        remindersEnabled: med.lembreteAtivo ?? false,
+        takenToday: med.tomadoHoje ?? false,
+        lastTakenAt: med.tomadoHojeEm,
+      };
     }
     setControls(nextControls);
-  }, [medicamentos, user]);
+  }, [medicamentos]);
 
-  function updateMedicationControl(medId: string, nextState: MedicationControlState) {
-    if (!user) return;
-    saveMedicationControl(user.id, medId, nextState);
+  async function updateMedicationControl(medId: string, nextState: MedicationControlState) {
+    const saved = await updateMedicamentoControleGestante(medId, {
+      lembreteAtivo: nextState.remindersEnabled,
+      tomadoHoje: nextState.takenToday,
+    });
     setControls((current) => ({
       ...current,
-      [medId]: nextState,
+      [medId]: {
+        remindersEnabled: saved.lembreteAtivo,
+        takenToday: saved.tomadoHoje,
+        lastTakenAt: saved.tomadoHojeEm,
+      },
     }));
+    setMedicamentos((current) => current.map((med) => (
+      med.id === medId
+        ? {
+            ...med,
+            lembreteAtivo: saved.lembreteAtivo,
+            tomadoHoje: saved.tomadoHoje,
+            tomadoHojeEm: saved.tomadoHojeEm,
+          }
+        : med
+    )));
   }
 
-  function handleQuickToggleTaken(med: Medicamento) {
+  async function handleQuickToggleTaken(med: Medicamento) {
     const current = controls[med.id] ?? { remindersEnabled: false, takenToday: false };
-    updateMedicationControl(med.id, {
+    await updateMedicationControl(med.id, {
       ...current,
       takenToday: !current.takenToday,
-      lastTakenAt: !current.takenToday ? new Date().toISOString() : current.lastTakenAt,
     });
   }
 

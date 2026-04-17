@@ -12,9 +12,11 @@ import {
   type MedicalRecord, type AssistantSummary, type TimelineEvent,
 } from '../../types/doctor';
 import {
+  addOrientation,
   addMedication,
   addMedicalRecord,
   approvePatientSummary,
+  deletePatientSummary,
   deleteMedicalRecord,
   deleteMedication,
   fetchPatientDetailsBundle,
@@ -104,6 +106,8 @@ function DoctorSummaryDetailModal({
   onRecommendationsChange,
   onApprove,
   approving,
+  onDelete,
+  deleting,
   onClose,
 }: {
   summary: ReviewedSummary;
@@ -113,6 +117,8 @@ function DoctorSummaryDetailModal({
   onRecommendationsChange: (value: string) => void;
   onApprove: () => void;
   approving: boolean;
+  onDelete: () => void;
+  deleting: boolean;
   onClose: () => void;
 }) {
   return (
@@ -205,15 +211,24 @@ function DoctorSummaryDetailModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={onDelete}
+              disabled={approving || deleting}
+              className="rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+            >
+              {deleting ? 'Apagando...' : 'Apagar'}
+            </button>
+            <button
+              type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+              disabled={approving || deleting}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
             >
               Fechar
             </button>
             <button
               type="button"
               onClick={onApprove}
-              disabled={approving || !reviewSummary.trim()}
+              disabled={approving || deleting || !reviewSummary.trim()}
               className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
             >
               {approving ? <Spinner size="sm" /> : null}
@@ -601,6 +616,7 @@ function DoctorAISummariesTab({ patientId, onSuccess }: { patientId: string; onS
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<DoctorSummaryFilter>('todos');
   const [summaries, setSummaries] = useState<ReviewedSummary[]>([]);
@@ -672,6 +688,27 @@ function DoctorAISummariesTab({ patientId, onSuccess }: { patientId: string; onS
       setError('Não foi possível aprovar o resumo para a paciente.');
     } finally {
       setApproving(false);
+    }
+  }
+
+  async function handleDeleteSummary() {
+    if (!selectedSummary) return;
+    const confirmed = window.confirm('Apagar este resumo de IA? Essa ação não pode ser desfeita.');
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      await deletePatientSummary(selectedSummary.id);
+      const remaining = summaries.filter((item) => item.id !== selectedSummary.id);
+      setSummaries(remaining);
+      syncSelectedSummary(remaining[0] ?? null);
+      setDetailOpen(false);
+      onSuccess('Resumo de IA apagado.');
+    } catch {
+      setError('Não foi possível apagar o resumo. Tente novamente.');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -834,6 +871,8 @@ function DoctorAISummariesTab({ patientId, onSuccess }: { patientId: string; onS
           onRecommendationsChange={setReviewRecommendations}
           onApprove={handleApprove}
           approving={approving}
+          onDelete={handleDeleteSummary}
+          deleting={deleting}
           onClose={() => setDetailOpen(false)}
         />
       )}
@@ -962,6 +1001,11 @@ function ReportsTab({
               <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-700">
                 {report.description || 'Relato sem descricao detalhada.'}
               </p>
+              {report.complementaryNote ? (
+                <p className="mt-2 line-clamp-2 text-xs text-brand-700">
+                  Nota complementar: {report.complementaryNote}
+                </p>
+              ) : null}
               {report.priorityReason ? (
                 <p className="mt-2 line-clamp-1 text-xs text-slate-500">
                   <strong>Motivo do destaque:</strong> {report.priorityReason}
@@ -1135,6 +1179,13 @@ function ReportsTab({
                 </p>
               </section>
 
+              {selectedReport.complementaryNote ? (
+                <section>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-800">Nota complementar da paciente</h4>
+                  <p className="text-sm leading-relaxed text-slate-700">{selectedReport.complementaryNote}</p>
+                </section>
+              ) : null}
+
               {selectedReport.symptoms.length > 0 ? (
                 <section>
                   <h4 className="mb-2 text-sm font-semibold text-slate-800">Sintomas associados</h4>
@@ -1230,6 +1281,14 @@ function ProntuarioTab({ patientId, records, onSuccess }: ProntuarioTabProps) {
         doctorId: user?.id ?? 'doc1',
         doctorName: user?.nomeCompleto ?? 'Dr. Médico',
       });
+      if (createRecordStructuredForm.guidance.trim()) {
+        await addOrientation({
+          patientId,
+          date: new Date().toISOString(),
+          text: createRecordStructuredForm.guidance.trim(),
+          doctorId: user?.id,
+        });
+      }
       setLocalRecords(prev => [rec, ...prev]);
       closeCreateRecordModal();
       onSuccess('Registro adicionado ao prontuário.');
@@ -1260,6 +1319,16 @@ function ProntuarioTab({ patientId, records, onSuccess }: ProntuarioTabProps) {
         actions: buildConsultationActions(recordModalStructuredForm),
         doctorId: selectedRecord.doctorId || (user?.id ?? 'doc1'),
       });
+      const previousGuidance = parseConsultationActions(selectedRecord.actions).guidance.trim();
+      const nextGuidance = recordModalStructuredForm.guidance.trim();
+      if (nextGuidance && nextGuidance !== previousGuidance) {
+        await addOrientation({
+          patientId,
+          date: selectedRecord.date,
+          text: nextGuidance,
+          doctorId: selectedRecord.doctorId || user?.id,
+        });
+      }
 
       const merged = { ...selectedRecord, ...updated, nextAppointment: recordModalForm.nextAppointment || undefined };
       setLocalRecords((prev) => prev.map((record) => (record.id === selectedRecord.id ? merged : record)));

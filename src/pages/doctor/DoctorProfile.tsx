@@ -10,6 +10,12 @@ import {
   saveDoctorProfile,
   type DoctorProfessionalProfile,
 } from '../../services/doctorProfileService';
+import {
+  fetchAIStatus,
+  runAICalibration,
+  type AICalibrationRun,
+  type AIStatus,
+} from '../../services/doctorApi';
 
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
@@ -106,11 +112,21 @@ function splitCommaList(value: string): string[] {
 
 const SERVICE_MODE_OPTIONS = ['Presencial', 'Telemonitoramento', 'Visita hospitalar', 'Ambulatório'];
 
+function getAIStatusBadgeVariant(status: AIStatus['status']): 'success' | 'warning' | 'neutral' {
+  if (status === 'online') return 'success';
+  if (status === 'offline') return 'warning';
+  return 'neutral';
+}
+
 export function DoctorProfile() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<DoctorProfessionalProfile | null>(null);
   const [languagesInput, setLanguagesInput] = useState('');
   const [toast, setToast] = useState<string | null>(null);
+  const [aiStatus, setAIStatus] = useState<AIStatus | null>(null);
+  const [aiCalibration, setAICalibration] = useState<AICalibrationRun | null>(null);
+  const [aiLoading, setAILoading] = useState(true);
+  const [aiRunningCalibration, setAIRunningCalibration] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -118,6 +134,14 @@ export function DoctorProfile() {
     setProfile(loaded);
     setLanguagesInput(loaded.languages.join(', '));
   }, [user]);
+
+  useEffect(() => {
+    setAILoading(true);
+    fetchAIStatus()
+      .then(setAIStatus)
+      .catch(() => setAIStatus(null))
+      .finally(() => setAILoading(false));
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -182,6 +206,20 @@ export function DoctorProfile() {
     const fallback = createDefaultDoctorProfile(currentUser);
     setProfile(fallback);
     setLanguagesInput(fallback.languages.join(', '));
+  }
+
+  async function handleRunCalibration() {
+    setAIRunningCalibration(true);
+    try {
+      const [status, run] = await Promise.all([fetchAIStatus(), runAICalibration()]);
+      setAIStatus(status);
+      setAICalibration(run);
+      setToast('Calibracao da IA executada.');
+    } catch {
+      setToast('Nao foi possivel executar a calibracao da IA.');
+    } finally {
+      setAIRunningCalibration(false);
+    }
   }
 
   return (
@@ -360,6 +398,105 @@ export function DoctorProfile() {
                   <li><span className="font-medium text-slate-800">Contato profissional</span> organiza comunicação sem misturar dados pessoais.</li>
                   <li><span className="font-medium text-slate-800">Forma de atuação</span> mostra se o acompanhamento é presencial, ambulatório ou telemonitorado.</li>
                 </ul>
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-700">Assistente clinico de IA</h3>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Status operacional e teste rapido de calibracao antes do uso clinico.
+                    </p>
+                  </div>
+                  {aiStatus && <Badge variant={getAIStatusBadgeVariant(aiStatus.status)}>{aiStatus.status === 'online' ? 'Online' : aiStatus.status === 'offline' ? 'Offline' : 'Desativado'}</Badge>}
+                </div>
+              </CardHeader>
+              <CardBody className="space-y-4 pt-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                  {aiLoading ? (
+                    <p>Verificando backend de IA...</p>
+                  ) : aiStatus ? (
+                    <div className="space-y-3">
+                      <p>{aiStatus.message}</p>
+                      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Provedor</dt>
+                          <dd className="mt-1 text-slate-900">{aiStatus.provider}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Modelo</dt>
+                          <dd className="mt-1 break-all text-slate-900">{aiStatus.model}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Endpoint</dt>
+                          <dd className="mt-1 break-all text-slate-900">{aiStatus.baseUrl}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Casos de validacao</dt>
+                          <dd className="mt-1 text-slate-900">{aiStatus.validationCases}</dd>
+                        </div>
+                      </dl>
+                    </div>
+                  ) : (
+                    <p>Nao foi possivel carregar o status da IA.</p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleRunCalibration}
+                    disabled={aiRunningCalibration}
+                    className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {aiRunningCalibration ? 'Executando calibracao...' : 'Executar calibracao'}
+                  </button>
+                </div>
+
+                {aiCalibration && (
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            Resultado: {aiCalibration.passedCases}/{aiCalibration.totalCases} casos aderentes
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {aiCalibration.message} Executado em {formatDate(aiCalibration.executedAt, { day: '2-digit', month: '2-digit' })}.
+                          </p>
+                        </div>
+                        <Badge variant={aiCalibration.passedCases === aiCalibration.totalCases ? 'success' : 'warning'}>
+                          {aiCalibration.passedCases === aiCalibration.totalCases ? 'Aderente' : 'Revisar'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {aiCalibration.cases.map((item) => (
+                        <div key={item.name} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900">{item.name}</p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                Semaforo esperado: {item.expectedSemaphore} | obtido: {item.actualSemaphore}
+                              </p>
+                            </div>
+                            <Badge variant={item.passed ? 'success' : 'warning'}>{item.passed ? 'Ok' : 'Divergente'}</Badge>
+                          </div>
+                          <p className="mt-3 text-xs text-slate-600">
+                            Sintomas esperados reconhecidos: {item.matchedSymptoms}/{item.expectedSymptoms.length || item.actualSymptoms.length || 0}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-700">
+                  A calibracao serve para verificar consistencia do rascunho. O resumo continua exigindo revisao e aprovacao medica antes de chegar a paciente.
+                </div>
               </CardBody>
             </Card>
 

@@ -9,6 +9,7 @@ class RelatoCreateRequest(BaseModel):
     humor: Literal["feliz", "normal", "triste", "ansioso"]
     sintomas: list[str] = Field(default_factory=list)
     descricao: str = Field(default="", max_length=3000)
+    nota_complementar: str = Field(default="", max_length=3000)
 
 
 class RelatoResponse(BaseModel):
@@ -18,5 +19,6 @@ class RelatoResponse(BaseModel):
     humor: Literal["feliz", "normal", "triste", "ansioso"]
     sintomas: list[str]
     descricao: str | None = None
+    nota_complementar: str | None = None
     created_at: datetime
     updated_at: datetime

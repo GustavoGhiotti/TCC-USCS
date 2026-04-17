@@ -15,6 +15,9 @@ class MedicamentoOut(BaseModel):
     dataPrescricao: date | None = None
     ativo: bool
     observacoes: str | None = None
+    lembreteAtivo: bool = False
+    tomadoHoje: bool = False
+    tomadoHojeEm: datetime | None = None
 
 
 class MedicamentoIn(BaseModel):
@@ -36,6 +39,18 @@ class MedicamentoUpdateIn(BaseModel):
     dataFim: date | None = None
     ativo: bool | None = None
     observacoes: str | None = None
+
+
+class MedicamentoControleIn(BaseModel):
+    lembreteAtivo: bool | None = None
+    tomadoHoje: bool | None = None
+
+
+class MedicamentoControleOut(BaseModel):
+    medicamentoId: str
+    lembreteAtivo: bool = False
+    tomadoHoje: bool = False
+    tomadoHojeEm: datetime | None = None
 
 
 class ExameArquivoIn(BaseModel):
@@ -178,6 +193,40 @@ class ResumoGerarIn(BaseModel):
     gestanteId: str
     periodo_inicio: datetime
     periodo_fim: datetime
+
+
+class AIStatusOut(BaseModel):
+    enabled: bool
+    provider: str
+    model: str
+    baseUrl: str
+    providerReachable: bool
+    status: Literal["online", "offline", "disabled"]
+    calibrationExamples: int
+    validationCases: int
+    message: str
+
+
+class AICalibrationCaseOut(BaseModel):
+    name: str
+    expectedSemaphore: Literal["verde", "amarelo", "vermelho"]
+    actualSemaphore: Literal["verde", "amarelo", "vermelho"]
+    semaphoreMatch: bool
+    expectedSymptoms: list[str] = Field(default_factory=list)
+    actualSymptoms: list[str] = Field(default_factory=list)
+    matchedSymptoms: int = 0
+    passed: bool
+
+
+class AICalibrationRunOut(BaseModel):
+    provider: str
+    model: str
+    executedAt: datetime
+    providerReachable: bool
+    totalCases: int
+    passedCases: int
+    message: str
+    cases: list[AICalibrationCaseOut] = Field(default_factory=list)
 
 
 class AlertNoteOut(BaseModel):

@@ -35,6 +35,7 @@ export interface RelatoDiario {
   gestanteId: string;
   data: string;
   descricao: string;
+  notaComplementar?: string;
   humor: 'feliz' | 'normal' | 'triste' | 'ansioso';
   sintomas: string[];
   criadoEm?: string;
@@ -65,6 +66,9 @@ export interface Medicamento {
   dataPrescricao?: string;
   dataFim?: string | null;
   ativo: boolean;
+  lembreteAtivo?: boolean;
+  tomadoHoje?: boolean;
+  tomadoHojeEm?: string;
 }
 
 export interface Consulta {
