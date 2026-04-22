@@ -1,5 +1,7 @@
 import json
+import math
 import re
+import unicodedata
 from functools import lru_cache
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,7 +9,73 @@ from pathlib import Path
 from app.core.config import settings
 
 
-TOKEN_RE = re.compile(r"[a-zA-ZÀ-ÿ0-9]{3,}")
+TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
+REF_NOISE_RE = re.compile(r"\b(et al|v\.|n\.|p\.|doi|isbn|issn)\b", re.IGNORECASE)
+
+STOPWORDS = {
+    "para",
+    "com",
+    "sem",
+    "uma",
+    "uns",
+    "umas",
+    "nos",
+    "nas",
+    "dos",
+    "das",
+    "que",
+    "como",
+    "onde",
+    "quando",
+    "qual",
+    "quais",
+    "porque",
+    "sobre",
+    "mais",
+    "muito",
+    "muita",
+    "pouco",
+    "pouca",
+    "isso",
+    "essa",
+    "esse",
+    "estas",
+    "esses",
+    "esta",
+    "estou",
+    "tenho",
+    "sinto",
+    "queria",
+    "gostaria",
+    "posso",
+    "pode",
+    "devo",
+    "seria",
+    "nao",
+    "sim",
+    "hoje",
+    "ontem",
+    "amanha",
+    "gestacao",
+    "gestante",
+    "gravidez",
+    "gravida",
+    "bebê",
+    "bebe",
+}
+
+QUERY_EXPANSIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("repelente", ("mosquito", "dengue", "arbovirose")),
+    ("pintar cabelo", ("cabelo", "tintura", "cosmetico")),
+    ("cabelo", ("tintura", "cosmetico")),
+    ("cafe", ("cafeina",)),
+    ("dor de cabeca", ("cefaleia",)),
+    ("cabeca", ("cefaleia",)),
+    ("visao embacada", ("escotoma", "fotofobia", "visao")),
+    ("pressao alta", ("hipertensao", "pre-eclampsia", "preeclampsia")),
+    ("sangramento", ("hemorragia",)),
+    ("perda de liquido", ("amniorrexe", "liquido", "amnio")),
+)
 
 
 @dataclass
@@ -24,7 +92,30 @@ class KnowledgeChunk:
 
 
 def _tokenize(text: str) -> set[str]:
-    return {match.group(0).lower() for match in TOKEN_RE.finditer(text)}
+    normalized = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
+    return {
+        token
+        for token in (match.group(0) for match in TOKEN_RE.finditer(normalized))
+        if token not in STOPWORDS and not token.isdigit()
+    }
+
+
+def _expand_query_tokens(question: str) -> set[str]:
+    question_tokens = _tokenize(question)
+    normalized_question = unicodedata.normalize("NFKD", question).encode("ascii", "ignore").decode("ascii").lower()
+    for trigger, expansions in QUERY_EXPANSIONS:
+        if trigger in normalized_question:
+            question_tokens.update(expansions)
+    return question_tokens
+
+
+def _is_reference_noise(chunk: KnowledgeChunk) -> bool:
+    haystack = f"{chunk.title} {chunk.section} {chunk.content}".lower()
+    if "referenc" in haystack or "bibliograf" in haystack:
+        return True
+    years = len(re.findall(r"\b(19|20)\d{2}\b", chunk.content))
+    punctuation = chunk.content.count(";") + chunk.content.count(",")
+    return years >= 4 and punctuation >= 10 and REF_NOISE_RE.search(chunk.content) is not None
 
 
 def _knowledge_dir() -> Path:
@@ -91,18 +182,31 @@ def _load_knowledge_chunks_cached(directory_str: str, snapshot: tuple[tuple[str,
 
 
 def retrieve_knowledge_chunks(question: str, *, top_k: int = 4) -> list[KnowledgeChunk]:
-    query_tokens = _tokenize(question)
+    query_tokens = _expand_query_tokens(question)
     if not query_tokens:
         return []
 
-    scored: list[tuple[int, int, KnowledgeChunk]] = []
+    scored: list[tuple[float, int, KnowledgeChunk]] = []
     directory = _knowledge_dir()
     snapshot = _directory_snapshot(directory)
-    for chunk, chunk_tokens in _load_search_index_cached(str(directory), snapshot):
-        overlap = len(query_tokens & chunk_tokens)
-        if overlap == 0:
+    index, idf_map = _load_search_index_cached(str(directory), snapshot)
+    question_lc = question.lower()
+
+    for chunk, chunk_tokens in index:
+        overlap_tokens = query_tokens & chunk_tokens
+        if not overlap_tokens:
             continue
-        scored.append((overlap, len(chunk.content), chunk))
+        score = sum(idf_map.get(token, 1.0) for token in overlap_tokens)
+        if len(overlap_tokens) >= 2:
+            score += 0.6
+        score += 0.3 * sum(1 for token in overlap_tokens if token in chunk.title.lower())
+        if question_lc in chunk.searchable_text:
+            score += 0.8
+        if _is_reference_noise(chunk):
+            score -= 2.2
+
+        if score >= 1.2:
+            scored.append((score, len(chunk.content), chunk))
 
     scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
     return [item[2] for item in scored[:top_k]]
@@ -117,6 +221,13 @@ def knowledge_stats() -> tuple[bool, int]:
 def _load_search_index_cached(
     directory_str: str,
     snapshot: tuple[tuple[str, int, int], ...],
-) -> tuple[tuple[KnowledgeChunk, frozenset[str]], ...]:
+) -> tuple[tuple[tuple[KnowledgeChunk, frozenset[str]], ...], dict[str, float]]:
     chunks = _load_knowledge_chunks_cached(directory_str, snapshot)
-    return tuple((chunk, frozenset(_tokenize(chunk.searchable_text))) for chunk in chunks)
+    index = tuple((chunk, frozenset(_tokenize(chunk.searchable_text))) for chunk in chunks)
+    total_docs = max(len(index), 1)
+    doc_freq: dict[str, int] = {}
+    for _, tokens in index:
+        for token in tokens:
+            doc_freq[token] = doc_freq.get(token, 0) + 1
+    idf_map = {token: math.log((1 + total_docs) / (1 + freq)) + 1 for token, freq in doc_freq.items()}
+    return index, idf_map
