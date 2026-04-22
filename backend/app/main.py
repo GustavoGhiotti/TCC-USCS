@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.db.init_db import init_db, seed_db
 from app.db.session import SessionLocal
 from app.models.user import User
+from app.services.ollama_runtime import ensure_ollama_running, shutdown_managed_ollama, warmup_ollama_model
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
@@ -33,6 +34,8 @@ app.include_router(chat_router)
 
 @app.on_event("startup")
 def on_startup() -> None:
+    ensure_ollama_running()
+    warmup_ollama_model()
     init_db()
     db = SessionLocal()
     try:
@@ -41,6 +44,11 @@ def on_startup() -> None:
             seed_db(db)
     finally:
         db.close()
+
+
+@app.on_event("shutdown")
+def on_shutdown() -> None:
+    shutdown_managed_ollama()
 
 
 @app.get("/health")

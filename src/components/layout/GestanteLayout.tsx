@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { GestanteChatWidget } from '../gestante/GestanteChatWidget';
 import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
 
@@ -177,6 +178,8 @@ interface GestanteLayoutProps {
 export function GestanteLayout({ children }: GestanteLayoutProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const showFloatingChat = location.pathname !== '/gestante/chat-ia';
 
   return (
     <div className="flex min-h-screen bg-slate-50 font-sans">
@@ -221,6 +224,8 @@ export function GestanteLayout({ children }: GestanteLayoutProps) {
           </div>
         </div>
       )}
+
+      {showFloatingChat && <GestanteChatWidget />}
     </div>
   );
 }

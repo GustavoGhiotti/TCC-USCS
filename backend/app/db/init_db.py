@@ -63,6 +63,10 @@ def init_db() -> None:
         for name, sql_type in med_expected.items():
             if name not in med_columns:
                 conn.execute(text(f"ALTER TABLE medicamentos ADD COLUMN {name} {sql_type}"))
+        chat_columns = {row[1] for row in conn.execute(text("PRAGMA table_info(chat_gestante_mensagens)")).fetchall()}
+        if "thread_id" not in chat_columns:
+            conn.execute(text("ALTER TABLE chat_gestante_mensagens ADD COLUMN thread_id TEXT"))
+            conn.execute(text("UPDATE chat_gestante_mensagens SET thread_id = gestante_id WHERE thread_id IS NULL OR thread_id = ''"))
 
 
 def seed_db(db: Session) -> None:

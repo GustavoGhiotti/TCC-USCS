@@ -17,9 +17,18 @@ class Settings(BaseSettings):
     ai_provider: str = "ollama"
     ai_enabled: bool = True
     ai_timeout_seconds: int = 45
+    ai_chat_timeout_seconds: int = 8
+    ai_summary_timeout_seconds: int = 8
+    ai_summary_use_llm: bool = False
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "llama3.1:8b"
     ollama_summary_model: str = "llama3.1:8b"
+    ollama_auto_start: bool = True
+    ollama_binary_path: str = "ollama"
+    ollama_warmup_on_startup: bool = True
+    ollama_keep_alive: str = "30m"
+    ollama_num_ctx: int = 1024
+    ollama_num_thread: int = 6
     ai_raw_sources_dir: str = str(Path.home() / "OneDrive" / "Documentos" / "BaseIA")
     ai_knowledge_dir: str = str(BACKEND_DIR / "app" / "ai" / "knowledge")
 

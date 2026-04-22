@@ -13,6 +13,7 @@ class KnowledgeCitationOut(BaseModel):
 
 class ChatGestanteMessageOut(BaseModel):
     id: str
+    threadId: str
     role: Literal["user", "assistant"]
     content: str
     urgencyLevel: Literal["rotina", "proxima_consulta", "mesmo_dia", "pronto_socorro", "sem_base"] | None = None
@@ -22,9 +23,11 @@ class ChatGestanteMessageOut(BaseModel):
 
 class ChatGestanteAskIn(BaseModel):
     message: str = Field(min_length=3, max_length=3000)
+    threadId: str | None = Field(default=None, min_length=1, max_length=36)
 
 
 class ChatGestanteAskOut(BaseModel):
+    threadId: str
     userMessage: ChatGestanteMessageOut
     assistantMessage: ChatGestanteMessageOut
     knowledgeLoaded: bool
@@ -34,3 +37,10 @@ class ChatGestanteAskOut(BaseModel):
 class ChatGestanteStatusOut(BaseModel):
     knowledgeLoaded: bool
     knowledgeChunks: int
+
+
+class ChatGestanteThreadOut(BaseModel):
+    id: str
+    title: str
+    updatedAt: datetime
+    messageCount: int

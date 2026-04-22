@@ -12,6 +12,7 @@ class ChatGestanteMessage(Base, TimestampMixin):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     gestante_id: Mapped[str] = mapped_column(String(36), ForeignKey("gestantes.id"), nullable=False, index=True)
+    thread_id: Mapped[str] = mapped_column(String(36), nullable=False, default=lambda: str(uuid.uuid4()), index=True)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     citations_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")

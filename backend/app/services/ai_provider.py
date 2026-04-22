@@ -30,10 +30,16 @@ class OllamaProvider:
         system_prompt: str,
         user_prompt: str,
         max_output_tokens: int | None = None,
+        timeout_seconds: int | None = None,
     ) -> AIProviderResult:
         options = {
             "temperature": 0.2,
+            "top_p": 0.85,
+            "repeat_penalty": 1.08,
+            "num_ctx": settings.ollama_num_ctx,
         }
+        if settings.ollama_num_thread > 0:
+            options["num_thread"] = settings.ollama_num_thread
         if max_output_tokens is not None:
             options["num_predict"] = max_output_tokens
 
@@ -41,7 +47,7 @@ class OllamaProvider:
             "model": self.model,
             "format": "json",
             "stream": False,
-            "keep_alive": "15m",
+            "keep_alive": settings.ollama_keep_alive,
             "prompt": f"{system_prompt}\n\n{user_prompt}",
             "options": options,
         }
@@ -53,7 +59,7 @@ class OllamaProvider:
         )
 
         try:
-            with request.urlopen(req, timeout=settings.ai_timeout_seconds) as response:
+            with request.urlopen(req, timeout=timeout_seconds or settings.ai_timeout_seconds) as response:
                 raw = response.read().decode("utf-8")
         except (error.URLError, TimeoutError, socket.timeout) as exc:
             raise AIProviderError(f"Falha ao conectar no Ollama: {exc}") from exc

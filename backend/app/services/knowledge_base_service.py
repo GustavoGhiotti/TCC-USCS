@@ -141,11 +141,13 @@ def _parse_file(path: Path) -> list[KnowledgeChunk]:
             continue
         page_value = item.get("page")
         page = int(page_value) if isinstance(page_value, int) else None
+        url_value = item.get("url")
+        url = str(url_value).strip() if url_value is not None else ""
         chunks.append(
             KnowledgeChunk(
                 title=title,
                 page=page,
-                url=str(item.get("url", "")).strip() or None,
+                url=url or None,
                 section=str(item.get("section", "")).strip(),
                 content=content,
             )
